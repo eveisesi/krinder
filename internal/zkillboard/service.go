@@ -29,8 +29,8 @@ func New(userAgent string) *Service {
 
 func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, out interface{}) error {
 
-	url := fmt.Sprintf("%s/%s", s.url, path)
-
+	url := fmt.Sprintf("%s%s", s.url, path)
+	fmt.Println(url)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
@@ -54,7 +54,7 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 			return errors.Wrapf(err, "expected status %d, got %d: unable to parse request body", expected, res.StatusCode)
 		}
 
-		return errors.Wrapf(err, "expected status %d, got %s: %s", expected, res.StatusCode, string(data))
+		return errors.Errorf("expected status %d, got %d: %s", expected, res.StatusCode, string(data))
 	}
 
 	err = json.NewDecoder(res.Body).Decode(out)
@@ -63,5 +63,37 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 	}
 
 	return nil
+
+}
+
+type Killmail struct {
+	KillmailID int   `json:"killmail_id"`
+	Meta       *Meta `json:"zkb"`
+}
+
+type Meta struct {
+	LocationID     int     `json:"locationID"`
+	Hash           string  `json:"hash"`
+	FittedValue    float64 `json:"fittedValue"`
+	DroppedValue   float64 `json:"droppedValue"`
+	DestroyedValue float64 `json:"destroyedValue"`
+	TotalValue     float64 `json:"totalValue"`
+	Points         int     `json:"points"`
+	NPC            bool    `json:"npc"`
+	Solo           bool    `json:"solo"`
+	Awox           bool    `json:"awox"`
+}
+
+func (s *Service) Killmails(ctx context.Context, entityType string, id, page int64) ([]*Killmail, error) {
+
+	url := fmt.Sprintf("/%s/%d/kills/npc/0/awox/0/page/%d/", entityType, id, page)
+	killmails := make([]*Killmail, 0, 200)
+
+	err := s.request(ctx, http.MethodGet, url, nil, http.StatusOK, &killmails)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch killmails from zkillboard")
+	}
+
+	return killmails, nil
 
 }

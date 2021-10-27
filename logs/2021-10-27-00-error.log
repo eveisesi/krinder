@@ -1,0 +1,1 @@
+time=2021-10-27T00:36:05Z level=error msg=failed to send message error=HTTP 400 Bad Request, {"message": "Cannot send an empty message", "code": 50006}
