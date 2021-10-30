@@ -1,8 +1,0 @@
-time=2021-10-30T19:09:51Z level=error msg=failed to fetch warIDs from ESI error=failed to fetch wars: expected status 200, got 502: <html>
-<head><title>502 Bad Gateway</title></head>
-<body>
-<center><h1>502 Bad Gateway</h1></center>
-</body>
-</html>
-
-time=2021-10-30T19:10:01Z level=error msg=failed to fetch warIDs from ESI error=failed to fetch wars: failed to decode request body to json: json: Unmarshal(non-pointer []int)
