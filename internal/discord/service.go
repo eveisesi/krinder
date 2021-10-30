@@ -21,7 +21,6 @@ type Service struct {
 	zkb *zkillboard.Service
 	esi *esi.Service
 
-	commands []*Command
 	messages chan *discordgo.MessageCreate
 }
 
@@ -35,11 +34,12 @@ func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.
 		messages: make(chan *discordgo.MessageCreate, 5),
 	}
 
-	s.commands = append(s.commands, NewCommand("search", s.searchResolver, s.searchExecutor))
-	s.commands = append(s.commands, NewCommand("ping", s.pingResolver, s.pingExecutor))
-	s.commands = append(s.commands, NewCommand("killright", s.killrightResolver, s.killrightExecutor))
+	// s.commands = append(s.commands, NewCommand("search", s.searchResolver, s.searchExecutor))
+	// s.commands = append(s.commands, NewCommand("ping", s.pingResolver, s.pingExecutor))
+	// s.commands = append(s.commands, NewCommand("killright", s.killrightResolver, s.killrightExecutor))
 
 	s.session = s.newDiscordSession(token)
+
 	return s
 }
 

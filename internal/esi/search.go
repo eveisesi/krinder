@@ -15,13 +15,16 @@ type SearchOk struct {
 }
 
 // HTTP Get /v2/search/?categories={category}&term={term}
-func (s *Service) Search(ctx context.Context, category, term string) (*SearchOk, error) {
+func (s *Service) Search(ctx context.Context, category, term string, strict bool) (*SearchOk, error) {
 
 	var searchOK = new(SearchOk)
 
 	v := url.Values{}
 	v.Add("categories", category)
 	v.Add("search", term)
+	if strict {
+		v.Add("strict", "true")
+	}
 
 	path := fmt.Sprintf("/v2/search/?%s", v.Encode())
 

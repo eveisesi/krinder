@@ -18,6 +18,11 @@ type config struct {
 		Host string `envconfig:"REDIS_HOST" required:"true"`
 		Pass string `envconfig:"REDIS_PASS" required:"true"`
 	}
+	Mongo struct {
+		Host string `envconfig:"MONGO_HOST" required:"true"`
+		User string `envconfig:"MONGO_USER" required:"true"`
+		Pass string `envconfig:"MONGO_PASS" required:"true"`
+	}
 	UserAgent string `envconfig:"USER_AGENT" required:"true"`
 }
 

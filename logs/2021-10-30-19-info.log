@@ -1,0 +1,30 @@
+time=2021-10-30T19:01:41Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:08:26Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:09:52Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:10:02Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:10:20Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:17:16Z level=info msg=initializing wars service
+time=2021-10-30T19:17:16Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:17:16Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:17:16Z level=info msg=fetching new wars from ESI numNewWars=2000
+time=2021-10-30T19:18:51Z level=info msg=initializing wars service
+time=2021-10-30T19:18:51Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:18:51Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:18:51Z level=info msg=fetching new wars from ESI numNewWars=2000
+time=2021-10-30T19:26:48Z level=info msg=initializing wars service
+time=2021-10-30T19:26:48Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:26:48Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:26:48Z level=info msg=fetching new wars from ESI numNewWars=2000
+time=2021-10-30T19:29:59Z level=info msg=initializing wars service
+time=2021-10-30T19:29:59Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:29:59Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:29:59Z level=info msg=fetching new wars from ESI numNewWars=2000
+time=2021-10-30T19:30:26Z level=info msg=initializing wars service
+time=2021-10-30T19:30:26Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:30:26Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:30:26Z level=info msg=fetching new wars from ESI numNewWars=2000
+time=2021-10-30T19:31:55Z level=info msg=session initialize successfully, listening for messages
+time=2021-10-30T19:59:44Z level=info msg=initializing wars service
+time=2021-10-30T19:59:44Z level=info msg=fetching known wars from mongo
+time=2021-10-30T19:59:44Z level=info msg=fetching wars from ESI
+time=2021-10-30T19:59:44Z level=info msg=fetching new wars from ESI numNewWars=2000

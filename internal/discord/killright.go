@@ -7,21 +7,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
-func (s *Service) killrightResolver(msg string) bool {
-	return strings.HasPrefix(msg, "killright")
-}
+func (s *Service) killrightExecutor(c *cli.Context) error {
 
-func (s *Service) killrightExecutor(msg *discordgo.MessageCreate) error {
+	msg, err := messageFromCLIContext(c)
+	if err != nil {
+		return err
+	}
 
-	stripped := strings.TrimPrefix(msg.Content, "killright ")
+	args := c.Args()
+	if len(args) > 1 {
+		return errors.Errorf("expected 2 args, got %d. Surround name in double quotes \"<name>\"", len(args))
+	}
+
 	ctx := context.Background()
-	id, err := strconv.ParseUint(stripped, 10, 64)
+	id, err := strconv.ParseUint(args[0], 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse id to integer")
 	}
@@ -73,9 +78,6 @@ func (s *Service) killrightExecutor(msg *discordgo.MessageCreate) error {
 			return errors.Wrap(err, "failed to fetch killmail from ESI")
 		}
 		if killmail.KillmailTime.Unix() < timeBoundary.Unix() {
-			// We have at least 14 days worth of mails, maybe more
-			// Additional filtering will be done after we fetch each mail
-			fmt.Println("filtered mail", killmail.KillmailTime.Format("2006-01-02 15:04:05"), timeBoundary.Format("2006-01-02 15:04:05"))
 			break
 		}
 
@@ -145,7 +147,7 @@ func (s *Service) killrightExecutor(msg *discordgo.MessageCreate) error {
 		}
 	}(msg.ChannelID)
 
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("Found %d potential killrights (Batches of 25):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(filteredKillmails)))
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of 25):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(filteredKillmails)), false))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to send message")
 		return err

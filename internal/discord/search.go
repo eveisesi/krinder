@@ -9,22 +9,34 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
 	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
-func (s *Service) searchResolver(msg string) bool {
-	return strings.HasPrefix(msg, "search")
-}
+var validCategories = []string{"character"}
 
-func (s *Service) searchExecutor(msg *discordgo.MessageCreate) error {
+func (s *Service) searchCommand(c *cli.Context) error {
 
-	// msg.Content == "search <name>"; stripped = "<name>"
-	stripped := strings.TrimPrefix(msg.Content, "search ")
-	category := "character"
+	msg, err := messageFromCLIContext(c)
+	if err != nil {
+		return err
+	}
+
+	args := c.Args()
+	if len(args) > 2 {
+		return errors.Errorf("expected 2 args, got %d. Surround name in double quotes \"<name>\"", len(args))
+	}
+
+	category := args[0]
+	if !isValidCategory(category) {
+		return errors.Errorf("%s is an invalid character, expected one of %s", category, strings.Join(validCategories, ", "))
+	}
+
+	term := args[1]
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	ids, err := s.esi.Search(ctx, "character", stripped)
+	ids, err := s.esi.Search(ctx, category, term, c.Bool("strict"))
 	if err != nil {
 		return errors.Wrapf(err, "failed to search for %s", category)
 	}
@@ -54,7 +66,7 @@ func (s *Service) searchExecutor(msg *discordgo.MessageCreate) error {
 		contentSlc = append(contentSlc, fmt.Sprintf("%d: %s", name.ID, name.Name))
 	}
 
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("Search Return %d Results: ```%s```", len(contentSlc), strings.Join(contentSlc, "\n")))
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Search Return %d Results: ```%s```", len(contentSlc), strings.Join(contentSlc, "\n")), false))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to send message")
 		return err
@@ -64,10 +76,34 @@ func (s *Service) searchExecutor(msg *discordgo.MessageCreate) error {
 
 }
 
+func appendLatencyToMessageCreate(msg *discordgo.MessageCreate, out string, useNewline bool) string {
+
+	ts, err := msg.Timestamp.Parse()
+	if err != nil {
+		return out
+	}
+	latency := time.Until(ts) * -1
+	format := "%s_latency_: %v"
+	if useNewline {
+		format = "%s\n_latency_: %v"
+	}
+	return fmt.Sprintf(format, out, latency.String())
+
+}
+
+func isValidCategory(category string) bool {
+	for _, c := range validCategories {
+		if c == category {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (s *Service) handleSearchCharacterIDs(ctx context.Context, ids []int) ([]*esi.NamesOk, error) {
 	if len(ids) == 0 {
 		return nil, nil
-
 	}
 
 	names, err := s.esi.Names(ctx, ids)

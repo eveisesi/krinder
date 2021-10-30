@@ -13,5 +13,15 @@ services:
         volumes:
             - krinder-cache:/data
             - ./.config/redis/redis.conf:/etc/redis.conf
+    mongo:
+        image: mongo:latest
+        restart: unless-stopped
+        container_name: krinder-mongo
+        env_file: .config/mongo/.env
+        ports:
+            - "55410:27017"
+        volumes:
+            - krinder-mongo:/data/db
 volumes:
     krinder-cache:
+    krinder-mongo:

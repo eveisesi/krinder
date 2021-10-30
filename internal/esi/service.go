@@ -58,15 +58,29 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 			return nil
 		}
 	}
+	var res = new(http.Response)
+	for i := 0; i < 3; i++ {
+		req, err := http.NewRequestWithContext(ctx, method, url, body)
+		if err != nil {
+			return errors.Wrap(err, "failed to create request")
+		}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return errors.Wrap(err, "failed to create request")
-	}
+		res, err = s.client.Do(req)
+		if err != nil {
+			return errors.Wrap(err, "failed to execute request")
+		}
 
-	res, err := s.client.Do(req)
-	if err != nil {
-		return errors.Wrap(err, "failed to execute request")
+		if res.StatusCode == http.StatusTooManyRequests {
+			fmt.Println("received 429, sleeping for 10 seconds")
+			time.Sleep(time.Second * 10)
+			continue
+		}
+
+		if res.StatusCode < http.StatusInternalServerError {
+			break
+		}
+
+		time.Sleep(time.Second)
 	}
 
 	defer func(requestID string, body io.ReadCloser) {
@@ -95,7 +109,7 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		}
 	}
 
-	err = json.NewDecoder(res.Body).Decode(out)
+	err := json.NewDecoder(res.Body).Decode(out)
 	if err != nil {
 		return errors.Wrap(err, "failed to decode request body to json")
 	}

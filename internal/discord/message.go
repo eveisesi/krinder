@@ -3,14 +3,20 @@ package discord
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/kballard/go-shellquote"
+	"github.com/pkg/errors"
+	"github.com/urfave/cli"
 )
 
-func (s *Service) Run() {
+var ErrMissingMsgIFace = errors.New("[ErrMissingMsgIFace] msg missing from metadata. contact application maintainer")
+var ErrMsgIFaceTypeInvalid = errors.New("[ErrMsgIFaceTypeInvalid] invalid type for msg iface. contact application mainter")
+
+func (s *Service) Run(done chan bool, wg *sync.WaitGroup) {
+
+	defer wg.Done()
 
 	err := s.session.Open()
 	if err != nil {
@@ -24,9 +30,8 @@ func (s *Service) Run() {
 	go s.handleMessageChannel(ctx)
 
 	s.logger.Info("session initialize successfully, listening for messages")
-	sc := make(chan os.Signal, 1)
-	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	<-sc
+	<-done
+	s.logger.WithField("service", "discord").Info("hold channel received value, closing session")
 
 	s.session.Close()
 
@@ -71,28 +76,53 @@ func (s *Service) handleMessageChannel(ctx context.Context) {
 
 func (s *Service) handleCommand(msg *discordgo.MessageCreate) error {
 
-	// for _, command := range s.commands {
-	// 	resolver := command.resolver(msg.Content)
-	// 	if resolver {
-	// 		err := command.executor(msg)
-	// 		if err != nil {
-	// 			// response to discord channel with error message
-	// 			return err
-	// 		}
+	defer buf.Reset()
 
-	// 		break
-	// 	}
-	// }
+	words, err := shellquote.Split(msg.Content)
+	if err != nil {
+		s.logger.WithError(err).Error("failed to parse inputted command")
+		return nil
+	}
 
-	buf.Reset()
-	buf.Grow(8096)
+	app := s.initializeCLI()
 
-	err := app.Run([]string{"help"})
+	if !s.shouldRunCLI(app, words) {
+		return nil
+	}
+
+	words = append([]string{"krinder"}, words...)
+
+	app.Metadata["msg"] = msg
+
+	err = app.Run(words)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(buf.String())
+	if buf.String() == "" {
+		return nil
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, buf.String())
+	if err != nil {
+		return errors.Wrap(err, "failed to send channel message")
+	}
 
 	return nil
+
+}
+
+func messageFromCLIContext(c *cli.Context) (*discordgo.MessageCreate, error) {
+	msgIface, ok := c.App.Metadata["msg"]
+	if !ok {
+		return nil, ErrMissingMsgIFace
+	}
+
+	msg, ok := msgIface.(*discordgo.MessageCreate)
+	if !ok {
+		return nil, ErrMsgIFaceTypeInvalid
+	}
+
+	return msg, nil
+
 }
