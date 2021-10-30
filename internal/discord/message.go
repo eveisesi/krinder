@@ -33,7 +33,10 @@ func (s *Service) Run() {
 }
 
 func (s *Service) ready(sess *discordgo.Session, event *discordgo.Ready) {
-	sess.UpdateGameStatus(0, "Kill! Kill! Kill!")
+	err := sess.UpdateGameStatus(0, "Kill! Kill! Kill!")
+	if err != nil {
+		s.logger.WithError(err).Error("failed to set bot status")
+	}
 }
 
 func (s *Service) handleMessageCreate(sess *discordgo.Session, msg *discordgo.MessageCreate) {
@@ -52,7 +55,13 @@ func (s *Service) handleMessageChannel(ctx context.Context) {
 	for {
 		select {
 		case msg := <-s.messages:
-			s.handleCommand(msg)
+			err := s.handleCommand(msg)
+			if err != nil {
+				_, err := s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("Your request encountered an error. Please try again in a few seconds, if the error continues, contact the Bot Maintainer\n%s", err))
+				if err != nil {
+					s.logger.WithError(err).Error("failed to send message to discord")
+				}
+			}
 		case <-ctx.Done():
 			break
 		}
@@ -60,21 +69,19 @@ func (s *Service) handleMessageChannel(ctx context.Context) {
 
 }
 
-func (s *Service) handleCommand(msg *discordgo.MessageCreate) {
+func (s *Service) handleCommand(msg *discordgo.MessageCreate) error {
 
 	for _, command := range s.commands {
 		resolver := command.resolver(msg.Content)
 		if resolver {
 			err := command.executor(msg)
 			if err != nil {
-
 				// response to discord channel with error message
-				fmt.Println(err)
-
+				return err
 			}
 
 			break
 		}
 	}
-
+	return nil
 }

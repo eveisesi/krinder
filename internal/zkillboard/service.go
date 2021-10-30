@@ -84,7 +84,7 @@ type Meta struct {
 	Awox           bool    `json:"awox"`
 }
 
-func (s *Service) Killmails(ctx context.Context, entityType string, id, page int64) ([]*Killmail, error) {
+func (s *Service) Killmails(ctx context.Context, entityType string, id uint64, page uint) ([]*Killmail, error) {
 
 	url := fmt.Sprintf("/%s/%d/kills/npc/0/awox/0/page/%d/", entityType, id, page)
 	killmails := make([]*Killmail, 0, 200)

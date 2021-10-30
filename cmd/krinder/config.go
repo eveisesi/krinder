@@ -14,6 +14,10 @@ type config struct {
 	Log struct {
 		Level string `envconfig:"LOG_LEVEL" default:"info"`
 	}
+	Redis struct {
+		Host string `envconfig:"REDIS_HOST" required:"true"`
+		Pass string `envconfig:"REDIS_PASS" required:"true"`
+	}
 	UserAgent string `envconfig:"USER_AGENT" required:"true"`
 }
 

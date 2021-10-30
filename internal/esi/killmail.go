@@ -15,6 +15,7 @@ type KillmailOk struct {
 	KillmailTime  time.Time          `json:"killmail_time"`
 	SolarSystemID int                `json:"solar_system_id"`
 	Victim        *KillmailVictim    `json:"victim"`
+	SolarSystem   *SystemOk          `json:"system,omitempty"`
 }
 
 type KillmailAttacker struct {
@@ -43,6 +44,8 @@ type KillmailVictim struct {
 	DamageTaken   int                   `json:"damage_taken"`
 	Items         []*KillmailVictimItem `json:"items"`
 	ShipTypeID    int                   `json:"ship_type_id"`
+
+	Character *CharacterOk `json:"character,omitempty"`
 }
 
 // HTTP Get /v1/killmails/{id}/{hash}/
@@ -52,7 +55,7 @@ func (s *Service) KillmailByIDHash(ctx context.Context, id int64, hash string) (
 
 	path := fmt.Sprintf("/v1/killmails/%d/%s/", id, hash)
 
-	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, killmailOk)
+	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(0), killmailOk)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute /v2/search on ESI API")
 	}

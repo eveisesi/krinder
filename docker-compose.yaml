@@ -1,0 +1,17 @@
+version: "3.7"
+
+services:
+    redis:
+        image: redis:6.2.5
+        restart: unless-stopped
+        container_name: krinder-redis
+        env_file: .config/redis/.env
+        ports:
+            - "55400:6379"
+        command: >
+            redis-server /etc/redis.conf
+        volumes:
+            - krinder-cache:/data
+            - ./.config/redis/redis.conf:/etc/redis.conf
+volumes:
+    krinder-cache:
