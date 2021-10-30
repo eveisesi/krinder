@@ -71,17 +71,28 @@ func (s *Service) handleMessageChannel(ctx context.Context) {
 
 func (s *Service) handleCommand(msg *discordgo.MessageCreate) error {
 
-	for _, command := range s.commands {
-		resolver := command.resolver(msg.Content)
-		if resolver {
-			err := command.executor(msg)
-			if err != nil {
-				// response to discord channel with error message
-				return err
-			}
+	// for _, command := range s.commands {
+	// 	resolver := command.resolver(msg.Content)
+	// 	if resolver {
+	// 		err := command.executor(msg)
+	// 		if err != nil {
+	// 			// response to discord channel with error message
+	// 			return err
+	// 		}
 
-			break
-		}
+	// 		break
+	// 	}
+	// }
+
+	buf.Reset()
+	buf.Grow(8096)
+
+	err := app.Run([]string{"help"})
+	if err != nil {
+		return err
 	}
+
+	fmt.Println(buf.String())
+
 	return nil
 }
