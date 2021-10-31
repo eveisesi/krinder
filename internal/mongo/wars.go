@@ -37,7 +37,6 @@ func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 				primitive.E{Key: "id", Value: 1},
 			},
 			Options: &options.IndexOptions{
-				Name:   null.StringFrom("wars_id_unique").Ptr(),
 				Unique: null.BoolFrom(true).Ptr(),
 			},
 		},
@@ -46,7 +45,6 @@ func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 				primitive.E{Key: "aggressor.allianceID", Value: 1},
 			},
 			Options: &options.IndexOptions{
-				Name:   null.StringFrom("wars_aggressor_allianceID_index").Ptr(),
 				Sparse: null.BoolFrom(true).Ptr(),
 			},
 		},
@@ -55,7 +53,6 @@ func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 				primitive.E{Key: "aggressor.corporation_ID", Value: 1},
 			},
 			Options: &options.IndexOptions{
-				Name:   null.StringFrom("wars_aggressor_corporation_ID_index").Ptr(),
 				Sparse: null.BoolFrom(true).Ptr(),
 			},
 		},
@@ -64,7 +61,6 @@ func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 				primitive.E{Key: "defender.allianceID", Value: 1},
 			},
 			Options: &options.IndexOptions{
-				Name:   null.StringFrom("wars_defender_allianceID_index").Ptr(),
 				Sparse: null.BoolFrom(true).Ptr(),
 			},
 		},
@@ -73,7 +69,6 @@ func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 				primitive.E{Key: "defender.corporationID", Value: 1},
 			},
 			Options: &options.IndexOptions{
-				Name:   null.StringFrom("wars_defender_corporationID_index").Ptr(),
 				Sparse: null.BoolFrom(true).Ptr(),
 			},
 		},

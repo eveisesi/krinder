@@ -47,7 +47,7 @@ func main() {
 
 	warsRepo, err := mdb.NewWarRepository(mongo.Database("krinder"))
 	if err != nil {
-		logger.WithError(err).Error("failed to initialize wars Repository")
+		logger.WithError(err).Fatal("failed to initialize wars Repository")
 	}
 
 	// Build out the services we want to use

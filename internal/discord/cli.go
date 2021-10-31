@@ -3,11 +3,14 @@ package discord
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
@@ -62,6 +65,43 @@ func (s *Service) initializeCLI() *cli.App {
 				UsageText:          "killright <characterID>",
 				Action:             s.killrightExecutor,
 				CustomHelpTemplate: CommandHelpTemplate,
+			},
+			{
+				Name:      "mail",
+				Usage:     "Generates a link to the killmail on zkillboard.com",
+				HelpName:  "mail",
+				UsageText: "mail <killmailID>",
+				Action: func(c *cli.Context) error {
+
+					msg, err := messageFromCLIContext(c)
+					if err != nil {
+						return err
+					}
+
+					args := c.Args()
+					if len(args) > 1 {
+						return errors.Errorf("expected 1 arg, got %d", len(args))
+					}
+					id, err := strconv.ParseUint(args[0], 10, 32)
+					if err != nil {
+						return errors.Wrap(err, "failed to parse killmail id to integer")
+					}
+
+					path := fmt.Sprintf("/kill/%d", id)
+
+					uri := url.URL{
+						Scheme: "https",
+						Host:   "zkillboard.com",
+						Path:   path,
+					}
+
+					_, err = s.session.ChannelMessageSend(msg.ChannelID, uri.String())
+					if err != nil {
+						return errors.Wrap(err, "failed to send message")
+					}
+
+					return nil
+				},
 			},
 		},
 		Metadata: make(map[string]interface{}),

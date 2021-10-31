@@ -39,7 +39,7 @@ type Entity struct {
 	ID uint
 }
 
-func (s *Service) EntitiesAtWar(ctx context.Context, entityA, entityB Entity) (bool, error) {
+func (s *Service) EntitiesAtWar(ctx context.Context, entityA, entityB Entity, killTime time.Time) (bool, error) {
 
 	const (
 		aggressorAllianceID    = "aggressor.allianceID"
@@ -64,7 +64,9 @@ func (s *Service) EntitiesAtWar(ctx context.Context, entityA, entityB Entity) (b
 		filters = append(filters, krinder.NewOrOperator(krinder.NewEqualOperator(aggressorAllianceID, entityB.ID), krinder.NewEqualOperator(defenderAllianceID, entityB.ID)))
 	}
 
-	wars, err := s.wars.Wars(ctx, filters...)
+	filters = append(filters, krinder.NewLessThanOperator("started", killTime), krinder.NewOrOperator(krinder.NewExistsOperator("finished", false), krinder.NewGreaterThanOperator("finished", killTime)))
+
+	wars, err := s.wars.Wars(ctx, krinder.NewAndOperator(filters...))
 	if err != nil {
 		return false, errors.Wrap(err, "failed to fetch wars for provided entities")
 	}

@@ -37,6 +37,11 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		return errors.Wrap(err, "failed to fetch character from ESI")
 	}
 
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, "character found, checking for killmails")
+	if err != nil {
+		s.logger.WithError(err).Errorln("failed to send message")
+	}
+
 	var zmails = make([]*zkillboard.Killmail, 0)
 	i := uint(1)
 	timeBoundary := time.Now().AddDate(0, 0, -14)
@@ -70,6 +75,11 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 		i++
 
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("found %d killmails, filtering....", len(zmails)))
+	if err != nil {
+		s.logger.WithError(err).Errorln("failed to send message")
 	}
 
 	filteredKillmails := make([]*esi.KillmailOk, 0, len(zmails))
@@ -110,25 +120,25 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		killmail.Victim.Character = victimCharacter
 
 		warEntityMatrix := [][]wars.Entity{}
-		if searchedCharacter.CorporationID > 0 && victimCharacter.CorporationID > 0 {
+		if searchedCharacter.CorporationID > 0 && killmail.Victim.CorporationID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
 				{T: "corporation", ID: searchedCharacter.CorporationID},
 				{T: "corporation", ID: victimCharacter.CorporationID},
 			})
 		}
-		if searchedCharacter.AllianceID > 0 && victimCharacter.AllianceID > 0 {
+		if searchedCharacter.AllianceID > 0 && killmail.Victim.AllianceID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
 				{T: "alliance", ID: searchedCharacter.AllianceID},
 				{T: "alliance", ID: victimCharacter.AllianceID},
 			})
 		}
-		if searchedCharacter.CorporationID > 0 && victimCharacter.AllianceID > 0 {
+		if searchedCharacter.CorporationID > 0 && killmail.Victim.AllianceID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
 				{T: "corporation", ID: searchedCharacter.CorporationID},
 				{T: "alliance", ID: victimCharacter.AllianceID},
 			})
 		}
-		if searchedCharacter.AllianceID > 0 && victimCharacter.CorporationID > 0 {
+		if searchedCharacter.AllianceID > 0 && killmail.Victim.CorporationID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
 				{T: "alliance", ID: searchedCharacter.AllianceID},
 				{T: "corporation", ID: victimCharacter.CorporationID},
@@ -137,7 +147,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 		var warSkip = false
 		for _, pair := range warEntityMatrix {
-			atWar, err := s.wars.EntitiesAtWar(ctx, pair[0], pair[1])
+			atWar, err := s.wars.EntitiesAtWar(ctx, pair[0], pair[1], killmail.KillmailTime)
 			if err != nil {
 				return errors.Wrap(err, "failed to determine if entities are at war")
 			}
@@ -154,6 +164,11 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 		filteredKillmails = append(filteredKillmails, killmail)
 
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("mails filtered down to %d killmails, filtering out duplicate victims....", len(filteredKillmails)))
+	if err != nil {
+		s.logger.WithError(err).Errorln("failed to send message")
 	}
 
 	messages := make([]string, 0, len(filteredKillmails))
