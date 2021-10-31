@@ -166,6 +166,16 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 	}
 
+	if len(filteredKillmails) == 0 {
+		_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, "0 killmails remained after filtering....", true))
+		if err != nil {
+			s.logger.WithError(err).Errorln("failed to send message")
+		}
+
+		return nil
+
+	}
+
 	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("mails filtered down to %d killmails, filtering out duplicate victims....", len(filteredKillmails)))
 	if err != nil {
 		s.logger.WithError(err).Errorln("failed to send message")
@@ -178,15 +188,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		if ok {
 			continue
 		}
-		messages = append(messages, fmt.Sprintf(
-			"%s killed %s (%d) on %s in %s (%.2f)",
-			searchedCharacter.Name,
-			killmail.Victim.Character.Name,
-			killmail.KillmailID,
-			killmail.KillmailTime.Format("2006-01-02"),
-			killmail.SolarSystem.Name,
-			killmail.SolarSystem.SecurityStatus,
-		))
+		messages = append(messages, s.formatMessage(c, searchedCharacter, killmail))
 		seen[killmail.Victim.CharacterID] = true
 	}
 
@@ -194,7 +196,15 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 	l := 20
 	end := j + l
 
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of %d):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(messages), l), false))
+	var extra string
+	switch c.String("format") {
+	case "evelink":
+		extra = "Copy and Paste this text into the in game notepad. The text will link to the characters showinfo window"
+	case "detailed":
+		extra = "```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)```"
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of %d):\n%s", len(messages), l, extra), false))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to send message")
 		return err
@@ -232,4 +242,27 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 	return nil
 
+}
+
+func (s *Service) formatMessage(c *cli.Context, searchedCharacter *esi.CharacterOk, killmail *esi.KillmailOk) string {
+	switch c.String("format") {
+	case "evelink":
+		return fmt.Sprintf(
+			"<url=showinfo:1373//%d>%s</url>",
+			killmail.Victim.CharacterID,
+			killmail.Victim.Character.Name,
+		)
+	case "detailed":
+		return fmt.Sprintf(
+			"%s killed %s (%d) on %s in %s (%.2f)",
+			searchedCharacter.Name,
+			killmail.Victim.Character.Name,
+			killmail.KillmailID,
+			killmail.KillmailTime.Format("2006-01-02"),
+			killmail.SolarSystem.Name,
+			killmail.SolarSystem.SecurityStatus,
+		)
+	default:
+		return killmail.Victim.Character.Name
+	}
 }

@@ -65,6 +65,13 @@ func (s *Service) initializeCLI() *cli.App {
 				UsageText:          "killright <characterID>",
 				Action:             s.killrightExecutor,
 				CustomHelpTemplate: CommandHelpTemplate,
+				Flags: []cli.Flag{
+					cli.StringFlag{
+						Name:  "format",
+						Usage: "Format of the list outputted. Options include simple, details, evelinks. (Default: simple)",
+						Value: "simple",
+					},
+				},
 			},
 			{
 				Name:      "mail",
