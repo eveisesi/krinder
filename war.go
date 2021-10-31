@@ -1,7 +1,6 @@
 package krinder
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/volatiletech/null"
@@ -25,7 +24,6 @@ type ESIWar struct {
 }
 
 func (u *ESIWar) ToMongoWar() *MongoWar {
-	fmt.Println(u.ID)
 	return &MongoWar{
 		ID:        uint(u.ID),
 		Aggressor: u.Aggressor.ToMongoWarAggressor(),

@@ -175,15 +175,16 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		seen[killmail.Victim.CharacterID] = true
 	}
 
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of 25):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(messages)), false))
+	j := 0
+	l := 20
+	end := j + l
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of %d):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(messages), l), false))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to send message")
 		return err
 	}
 
-	j := 0
-	l := 25
-	end := j + l
 	for {
 		if end > len(messages) {
 			end = len(messages)
@@ -194,8 +195,10 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 			break
 		}
 
-		_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("```%s```", message))
+		message = fmt.Sprintf("```%s```", message)
+		_, err = s.session.ChannelMessageSend(msg.ChannelID, message)
 		if err != nil {
+			fmt.Println(message)
 			s.logger.WithError(err).Error("failed to send message")
 			return err
 		}

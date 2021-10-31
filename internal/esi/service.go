@@ -2,7 +2,7 @@ package esi
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -166,7 +166,7 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 		return errors.Wrap(err, "failed to encode payload to json")
 	}
 
-	key := fmt.Sprintf("%x", sha1.Sum([]byte(url)))
+	key := fmt.Sprintf("%x", sha256.Sum256([]byte(url)))
 	_, err = s.cache.Set(ctx, key, string(payload), d).Result()
 
 	return errors.Wrap(err, "failed to cache response")
@@ -175,7 +175,7 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 
 func (s *Service) getResponseCache(ctx context.Context, url string, out *Out) error {
 
-	key := fmt.Sprintf("%x", sha1.Sum([]byte(url)))
+	key := fmt.Sprintf("%x", sha256.Sum256([]byte(url)))
 	b, err := s.cache.Get(ctx, key).Bytes()
 	if err != nil {
 		return err

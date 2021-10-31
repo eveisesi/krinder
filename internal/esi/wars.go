@@ -45,11 +45,8 @@ func (s *Service) War(ctx context.Context, id uint, etag string) (*krinder.ESIWa
 	)
 
 	if out.Status == http.StatusNotModified {
-
 		return nil, nil
 	}
-
-	fmt.Println(out.Status)
 
 	return war, err
 

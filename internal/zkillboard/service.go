@@ -30,7 +30,6 @@ func New(userAgent string) *Service {
 func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, out interface{}) error {
 
 	url := fmt.Sprintf("%s%s", s.url, path)
-	fmt.Println(url)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
