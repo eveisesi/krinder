@@ -1,6 +1,13 @@
 version: "3.7"
 
 services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        restart: unless-stopped
+        container_name: krinder-app
+        env_file: .config/.env
     redis:
         image: redis:6.2.5
         restart: unless-stopped
