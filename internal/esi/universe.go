@@ -26,7 +26,8 @@ func (s *Service) Names(ctx context.Context, ids []int) ([]*NamesOk, error) {
 	}
 
 	var names = make([]*NamesOk, 0, len(ids))
-	err = s.request(ctx, http.MethodPost, "/v3/universe/names", bytes.NewReader(data), http.StatusOK, time.Duration(0), &names)
+	var out = &Out{Data: &names}
+	err = s.request(ctx, http.MethodPost, "/v3/universe/names", bytes.NewReader(data), http.StatusOK, time.Duration(0), out, nil, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute /v2/search on ESI API")
 	}
@@ -45,8 +46,10 @@ type SystemOk struct {
 func (s *Service) System(ctx context.Context, id uint) (*SystemOk, error) {
 
 	var systemOk = new(SystemOk)
+	var out = &Out{Data: systemOk}
+
 	path := fmt.Sprintf("/v4/universe/systems/%d/", id)
-	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(time.Hour*24), systemOk)
+	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(time.Hour*24), out, nil, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch system")
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eveisesi/krinder/internal/esi"
+	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
@@ -85,6 +86,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to fetch killmail solar system from ESI")
 		}
+		killmail.SolarSystem = system
 
 		if system.SecurityStatus < 0 {
 			continue
@@ -99,8 +101,6 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 			continue
 		}
 
-		killmail.SolarSystem = system
-
 		// Add Checking for Wars
 		victimCharacter, err := s.esi.Character(ctx, uint64(killmail.Victim.CharacterID))
 		if err != nil {
@@ -109,26 +109,60 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 		killmail.Victim.Character = victimCharacter
 
+		warEntityMatrix := [][]wars.Entity{}
+		if searchedCharacter.CorporationID > 0 && victimCharacter.CorporationID > 0 {
+			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+				{T: "corporation", ID: searchedCharacter.CorporationID},
+				{T: "corporation", ID: victimCharacter.CorporationID},
+			})
+		}
+		if searchedCharacter.AllianceID > 0 && victimCharacter.AllianceID > 0 {
+			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+				{T: "alliance", ID: searchedCharacter.AllianceID},
+				{T: "alliance", ID: victimCharacter.AllianceID},
+			})
+		}
+		if searchedCharacter.CorporationID > 0 && victimCharacter.AllianceID > 0 {
+			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+				{T: "corporation", ID: searchedCharacter.CorporationID},
+				{T: "alliance", ID: victimCharacter.AllianceID},
+			})
+		}
+		if searchedCharacter.AllianceID > 0 && victimCharacter.CorporationID > 0 {
+			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+				{T: "alliance", ID: searchedCharacter.AllianceID},
+				{T: "corporation", ID: victimCharacter.CorporationID},
+			})
+		}
+
+		var warSkip = false
+		for _, pair := range warEntityMatrix {
+			atWar, err := s.wars.EntitiesAtWar(ctx, pair[0], pair[1])
+			if err != nil {
+				return errors.Wrap(err, "failed to determine if entities are at war")
+			}
+
+			warSkip = atWar
+			if warSkip {
+				break
+			}
+		}
+
+		if warSkip {
+			continue
+		}
+
 		filteredKillmails = append(filteredKillmails, killmail)
 
 	}
 
-	// // Dedup Victims
-	// mapVictimCharacters := make(map[uint64]*esi.KillmailOk)
-	// for _, killmail := range filteredKillmails {
-	// 	known, ok := mapVictimCharacters[uint64(killmail.Victim.CharacterID)]
-	// 	if !ok {
-	// 		mapVictimCharacters[uint64(killmail.Victim.CharacterID)] = killmail
-	// 		continue
-	// 	}
-
-	// 	if killmail.KillmailTime.Unix() > known.KillmailTime.Unix() {
-	// 		mapVictimCharacters[uint64(killmail.Victim.CharacterID)] = killmail
-	// 	}
-	// }
-
 	messages := make([]string, 0, len(filteredKillmails))
+	seen := make(map[int]bool)
 	for _, killmail := range filteredKillmails {
+		_, ok := seen[killmail.Victim.CharacterID]
+		if ok {
+			continue
+		}
 		messages = append(messages, fmt.Sprintf(
 			"%s killed %s (%d) on %s in %s (%.2f)",
 			searchedCharacter.Name,
@@ -138,16 +172,10 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 			killmail.SolarSystem.Name,
 			killmail.SolarSystem.SecurityStatus,
 		))
+		seen[killmail.Victim.CharacterID] = true
 	}
 
-	go func(channelID string) {
-		err := s.session.ChannelTyping(channelID)
-		if err != nil {
-			s.logger.WithError(err).Error("failed to set typing status")
-		}
-	}(msg.ChannelID)
-
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of 25):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(filteredKillmails)), false))
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential killrights (Batches of 25):\n```<Attacker> killed <Victim> (<Killmail ID>) on <Date> in <System> (<System Sec>)``` ", len(messages)), false))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to send message")
 		return err

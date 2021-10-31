@@ -14,6 +14,7 @@ import (
 	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/go-redis/redis/v8"
+	"github.com/robfig/cron/v3"
 	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -52,18 +53,31 @@ func main() {
 	// Build out the services we want to use
 	zkb := zkillboard.New(cfg.UserAgent)
 	esi := esi.New(cfg.UserAgent, redis)
+	wars := wars.NewService(logger, esi, warsRepo)
+	wars.Run()
 
+	cn := cron.New()
+	_, err = cn.AddJob("@every 3h", wars)
+	if err != nil {
+		logger.WithError(err).Fatal("failed to add job to cron scheduler")
+	}
 	done := make(chan bool, 1)
 
-	wars := wars.NewService(logger, esi, warsRepo)
+	go func(cn *cron.Cron, done chan bool) {
 
-	wars.Initialize()
+		cn.Start()
+		<-done
+		logger.WithField("service", "cron").Info("hold channel received value, closing session")
+
+		cn.Stop()
+
+	}(cn, done)
 
 	// The discord service is the root service of this application.
 	// It maintains a connection to the Discord Gateway and processes all commands
 	// that users may issue via that gateway
 	wg.Add(1)
-	go discord.New(cfg.Discord.Token, logger, zkb, esi).Run(done, wg)
+	go discord.New(cfg.Discord.Token, logger, zkb, esi, wars).Run(done, wg)
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

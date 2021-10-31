@@ -49,7 +49,13 @@ func New(userAgent string, cache *redis.Client) *Service {
 // Execute a request to the ESI API using the provided Method, Path, and Body. If the response status != the exepected status
 // the response body is decoded to a slice of bytes, converted to a string, and appended to the end of an error message
 
-func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, cacheDuration time.Duration, out interface{}) error {
+type Out struct {
+	Data    interface{} `json:"data"`
+	Headers http.Header `json:"headers"`
+	Status  int         `json:"status"`
+}
+
+func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, cacheDuration time.Duration, out *Out, reqMods []requestFunc, respMods []responseFunc) error {
 
 	url := fmt.Sprintf("%s%s", s.url, path)
 
@@ -63,6 +69,12 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		req, err := http.NewRequestWithContext(ctx, method, url, body)
 		if err != nil {
 			return errors.Wrap(err, "failed to create request")
+		}
+
+		if len(reqMods) > 0 {
+			for _, mod := range reqMods {
+				mod(req)
+			}
 		}
 
 		res, err = s.client.Do(req)
@@ -90,7 +102,7 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		}
 	}(fmt.Sprintf("%s %s", method, path), res.Body)
 
-	if res.StatusCode > 299 || res.StatusCode != expected {
+	if res.StatusCode > 399 || (res.StatusCode != expected && res.StatusCode != http.StatusNotModified) {
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
 			return errors.Wrapf(err, "expected status %d, got %d: unable to parse request body", expected, res.StatusCode)
@@ -99,19 +111,30 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		return errors.Errorf("expected status %d, got %d: %s", expected, res.StatusCode, string(data))
 	}
 
-	if cacheDuration == time.Duration(-1) {
-		expiresHeader := res.Header.Get("Expires")
-		if expiresHeader != "" {
-			expires, err := time.Parse(HeaderTimestampFormat, expiresHeader)
-			if err == nil {
-				cacheDuration = time.Until(expires)
+	out.Status = res.StatusCode
+	out.Headers = res.Header
+
+	if out.Status == http.StatusOK {
+		if cacheDuration == time.Duration(-1) {
+			expiresHeader := res.Header.Get("Expires")
+			if expiresHeader != "" {
+				expires, err := time.Parse(HeaderTimestampFormat, expiresHeader)
+				if err == nil {
+					cacheDuration = time.Until(expires)
+				}
 			}
+		}
+
+		err := json.NewDecoder(res.Body).Decode(out.Data)
+		if err != nil {
+			return errors.Wrap(err, "failed to decode request body to json")
 		}
 	}
 
-	err := json.NewDecoder(res.Body).Decode(out)
-	if err != nil {
-		return errors.Wrap(err, "failed to decode request body to json")
+	if len(respMods) > 0 {
+		for _, mod := range respMods {
+			mod(out)
+		}
 	}
 
 	if method == http.MethodGet {
@@ -127,7 +150,7 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 // if duration == -1, results will be cached temporarily according to the Expires header on the result if the result response code == expected
 // if duration == 0, results will not be cached
 // if duration > 0, results will be cached accordding to the provided value multiple by time.Second
-func (s *Service) setResponseCache(ctx context.Context, url string, duration time.Duration, data interface{}) error {
+func (s *Service) setResponseCache(ctx context.Context, url string, duration time.Duration, out *Out) error {
 
 	var d time.Duration
 	if duration == -2 {
@@ -138,7 +161,7 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 		return nil
 	}
 
-	payload, err := json.Marshal(data)
+	payload, err := json.Marshal(out)
 	if err != nil {
 		return errors.Wrap(err, "failed to encode payload to json")
 	}
@@ -150,7 +173,7 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 
 }
 
-func (s *Service) getResponseCache(ctx context.Context, url string, data interface{}) error {
+func (s *Service) getResponseCache(ctx context.Context, url string, out *Out) error {
 
 	key := fmt.Sprintf("%x", sha1.Sum([]byte(url)))
 	b, err := s.cache.Get(ctx, key).Bytes()
@@ -158,7 +181,7 @@ func (s *Service) getResponseCache(ctx context.Context, url string, data interfa
 		return err
 	}
 
-	err = json.Unmarshal(b, data)
+	err = json.Unmarshal(b, out)
 
 	return err
 

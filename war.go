@@ -1,6 +1,7 @@
 package krinder
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/volatiletech/null"
@@ -15,13 +16,16 @@ type ESIWar struct {
 	Mutual        bool `json:"mutual"`
 	OpenForAllies bool `json:"open_for_allies"`
 
-	Declared  time.Time `json:"declared"`
-	Started   time.Time `json:"started"`
-	Retracted null.Time `json:"retracted"`
-	Finished  null.Time `json:"finished"`
+	Declared      time.Time `json:"declared"`
+	Started       time.Time `json:"started"`
+	Retracted     null.Time `json:"retracted"`
+	Finished      null.Time `json:"finished"`
+	ExpiresAt     null.Time `json:"expiresAt,omitempty"`
+	IntegrityHash string    `json:"integrityHash,omitempty"`
 }
 
 func (u *ESIWar) ToMongoWar() *MongoWar {
+	fmt.Println(u.ID)
 	return &MongoWar{
 		ID:        uint(u.ID),
 		Aggressor: u.Aggressor.ToMongoWarAggressor(),
@@ -39,6 +43,8 @@ func (u *ESIWar) ToMongoWar() *MongoWar {
 		Started:       u.Started,
 		Retracted:     u.Retracted.Ptr(),
 		Finished:      u.Finished.Ptr(),
+		ExpiresAt:     u.ExpiresAt.Ptr(),
+		IntegrityHash: u.IntegrityHash,
 	}
 }
 

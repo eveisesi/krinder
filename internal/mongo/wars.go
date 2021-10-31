@@ -18,6 +18,7 @@ type WarAPI interface {
 	Wars(ctx context.Context, operators ...*krinder.Operator) ([]*krinder.MongoWar, error)
 	CreateWar(ctx context.Context, war *krinder.MongoWar) (*krinder.MongoWar, error)
 	CreateWarBulk(ctx context.Context, wars []*krinder.MongoWar) error
+	UpdateWar(ctx context.Context, war *krinder.MongoWar) error
 }
 
 type WarRepository struct {
@@ -148,6 +149,25 @@ func (r *WarRepository) CreateWarBulk(ctx context.Context, wars []*krinder.Mongo
 
 	if len(results.InsertedIDs) != len(wars) {
 		return errors.Errorf("length of inserted ids (%d) does not match length of provided documents (%d)", len(results.InsertedIDs), len(documents))
+	}
+
+	return nil
+
+}
+
+func (r *WarRepository) UpdateWar(ctx context.Context, war *krinder.MongoWar) error {
+
+	now := time.Now()
+	war.UpdatedAt = now
+
+	filter := BuildFilters(krinder.NewEqualOperator("id", war.ID))
+	result, err := r.wars.UpdateOne(ctx, filter, primitive.D{primitive.E{Key: "$set", Value: war}})
+	if err != nil {
+		return err
+	}
+
+	if result.ModifiedCount == 0 {
+		return errors.New("expected modified count of 1, got 0")
 	}
 
 	return nil

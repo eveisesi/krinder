@@ -52,10 +52,10 @@ type KillmailVictim struct {
 func (s *Service) KillmailByIDHash(ctx context.Context, id int64, hash string) (*KillmailOk, error) {
 
 	var killmailOk = new(KillmailOk)
-
+	var out = &Out{Data: killmailOk}
 	path := fmt.Sprintf("/v1/killmails/%d/%s/", id, hash)
 
-	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(0), killmailOk)
+	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(0), out, nil, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute /v2/search on ESI API")
 	}

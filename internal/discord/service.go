@@ -5,6 +5,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
+	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/sirupsen/logrus"
 )
@@ -21,15 +22,19 @@ type Service struct {
 	zkb *zkillboard.Service
 	esi *esi.Service
 
+	wars *wars.Service
+
 	messages chan *discordgo.MessageCreate
 }
 
-func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.Service) *Service {
+func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.Service, wars *wars.Service) *Service {
 	s := &Service{
 		logger: logger,
 
 		zkb: zkb,
 		esi: esi,
+
+		wars: wars,
 
 		messages: make(chan *discordgo.MessageCreate, 5),
 	}

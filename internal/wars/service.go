@@ -3,10 +3,12 @@ package wars
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/eveisesi/krinder"
 	"github.com/eveisesi/krinder/internal/esi"
 	mdb "github.com/eveisesi/krinder/internal/mongo"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,7 +17,7 @@ type Service struct {
 
 	esi *esi.Service
 
-	mdb.WarAPI
+	wars mdb.WarAPI
 }
 
 func NewService(logger *logrus.Logger, esi *esi.Service, warAPI mdb.WarAPI) *Service {
@@ -23,17 +25,103 @@ func NewService(logger *logrus.Logger, esi *esi.Service, warAPI mdb.WarAPI) *Ser
 		logger: logger,
 		esi:    esi,
 
-		WarAPI: warAPI,
+		wars: warAPI,
 	}
 }
 
-func (s *Service) Initialize() {
+func (s *Service) Run() {
+	s.checkForNewWars()
+	s.updateWars()
+}
 
+type Entity struct {
+	T  string // Entity Type, must be either corporation or alliance
+	ID uint
+}
+
+func (s *Service) EntitiesAtWar(ctx context.Context, entityA, entityB Entity) (bool, error) {
+
+	const (
+		aggressorAllianceID    = "aggressor.allianceID"
+		aggressorCorporationID = "aggressor.corporationID"
+		defenderAllianceID     = "defender.allianceID"
+		defenderCorporationID  = "defender.corporationID"
+	)
+
+	filters := make([]*krinder.Operator, 0, 4)
+	// Handle Entity A first
+	switch entityA.T {
+	case "corporation":
+		filters = append(filters, krinder.NewOrOperator(krinder.NewEqualOperator(aggressorCorporationID, entityA.ID), krinder.NewEqualOperator(defenderCorporationID, entityA.ID)))
+	case "alliance":
+		filters = append(filters, krinder.NewOrOperator(krinder.NewEqualOperator(aggressorAllianceID, entityA.ID), krinder.NewEqualOperator(defenderAllianceID, entityA.ID)))
+	}
+
+	switch entityB.T {
+	case "corporation":
+		filters = append(filters, krinder.NewOrOperator(krinder.NewEqualOperator(aggressorCorporationID, entityB.ID), krinder.NewEqualOperator(defenderCorporationID, entityB.ID)))
+	case "alliance":
+		filters = append(filters, krinder.NewOrOperator(krinder.NewEqualOperator(aggressorAllianceID, entityB.ID), krinder.NewEqualOperator(defenderAllianceID, entityB.ID)))
+	}
+
+	wars, err := s.wars.Wars(ctx, filters...)
+	if err != nil {
+		return false, errors.Wrap(err, "failed to fetch wars for provided entities")
+	}
+
+	return len(wars) > 0, nil
+
+}
+
+func (s *Service) updateWars() {
+
+	ctx := context.Background()
+	esiWars, err := s.wars.Wars(ctx, krinder.NewExistsOperator("finished", false), krinder.NewLessThanOperator("expiresAt", time.Now().UTC()))
+	if err != nil {
+		s.logger.WithError(err).Error("failed to fetch wars to update")
+		return
+	}
+
+	s.logger.WithField("updatedableWars", len(esiWars)).Info("updating wars")
+
+	var updatedMongoWars = make([]*krinder.MongoWar, 0, len(esiWars))
+	for i, esiWar := range esiWars {
+		if i%50 == 0 {
+			s.logger.WithField("iteration", i).Infoln()
+		}
+
+		war, err := s.esi.War(ctx, esiWar.ID, esiWar.IntegrityHash)
+		if err != nil {
+			s.logger.WithError(err).WithField("id", esiWar.ID).Error("failed to fetch War from ESI")
+			continue
+		}
+
+		if war == nil {
+			continue
+		}
+
+		updatedMongoWars = append(updatedMongoWars, war.ToMongoWar())
+
+	}
+
+	s.logger.WithField("countUpdatedWars", updatedMongoWars).Infoln()
+
+	for _, mongoWar := range updatedMongoWars {
+		s.logger.WithField("id", mongoWar.ID).Info("updating war")
+		err := s.wars.UpdateWar(ctx, mongoWar)
+		if err != nil {
+			s.logger.WithError(err).Error("failed to update war")
+		}
+	}
+
+}
+
+func (s *Service) checkForNewWars() {
 	s.logger.Info("initializing wars service")
 	s.logger.Info("fetching known wars from mongo")
 
 	ctx := context.Background()
-	wars, err := s.Wars(ctx, krinder.NewOrderOperator("id", krinder.SortDesc))
+	wars, err := s.wars.Wars(ctx, krinder.NewOrderOperator("id", krinder.SortDesc))
 	if err != nil {
 		s.logger.WithError(err).Error("failed to fetch known wars from mongo")
 		return
@@ -64,20 +152,18 @@ func (s *Service) Initialize() {
 		return
 	}
 
-	s.logger.WithField("numNewWars", len(newIDs)).Info("fetching new wars from ESI")
+	s.logger.WithField("numNewWars", len(newIDs)).Info("fetching new wars from ESI. ")
+	s.logger.Info("This could take a minute, especially if redis has been cleared recently and mongo is empty")
 	var newWars = make([]*krinder.ESIWar, 0, len(newIDs))
 
-	for i, id := range newIDs {
-		war, err := s.esi.War(ctx, uint(id))
+	for _, id := range newIDs {
+		war, err := s.esi.War(ctx, uint(id), "")
 		if err != nil {
 			fmt.Println(err)
 			continue
 		}
 
 		newWars = append(newWars, war)
-		if i%50 == 0 {
-			fmt.Println(i)
-		}
 	}
 
 	mongoWars := make([]*krinder.MongoWar, 0, len(newWars))
@@ -85,16 +171,8 @@ func (s *Service) Initialize() {
 		mongoWars = append(mongoWars, war.ToMongoWar())
 	}
 
-	err = s.CreateWarBulk(ctx, mongoWars)
+	err = s.wars.CreateWarBulk(ctx, mongoWars)
 	if err != nil {
 		s.logger.WithError(err).Error("failed to save wars to mongo")
 	}
-
-}
-
-// Run is a function that satisfies the Cron Runner Interface
-func Run() {
-
-	// wars, err :
-
 }
