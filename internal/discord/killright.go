@@ -7,11 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
 	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
+	"github.com/sirupsen/logrus"
+	"github.com/urfave/cli/v2"
 )
 
 func (s *Service) killrightExecutor(c *cli.Context) error {
@@ -22,24 +24,18 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 	}
 
 	args := c.Args()
-	if len(args) > 1 {
-		return errors.Errorf("expected 2 args, got %d. Surround name in double quotes \"<name>\"", len(args))
-	}
 
 	ctx := context.Background()
-	id, err := strconv.ParseUint(args[0], 10, 64)
+	id, err := strconv.ParseUint(args.Get(0), 10, 64)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse id to integer")
 	}
 
-	searchedCharacter, err := s.esi.Character(ctx, id)
-	if err != nil {
-		return errors.Wrap(err, "failed to fetch character from ESI")
-	}
-
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, "character found, checking for killmails")
-	if err != nil {
-		s.logger.WithError(err).Errorln("failed to send message")
+	var ft zkillboard.FetchType = zkillboard.KillsFetchType
+	var et zkillboard.EntityType = zkillboard.CharacterEntityType
+	switch c.String("perspective") {
+	case "victim":
+		ft = zkillboard.LossesFetchType
 	}
 
 	var zmails = make([]*zkillboard.Killmail, 0)
@@ -48,7 +44,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 	timeBoundary = time.Date(timeBoundary.Year(), timeBoundary.Month(), timeBoundary.Day(), 0, 0, 0, 0, time.UTC)
 	for {
 
-		killmailInteration, err := s.zkb.Killmails(ctx, "characterID", id, i)
+		killmailInteration, err := s.zkb.Killmails(ctx, et, id, ft, i)
 		if err != nil {
 			return errors.Wrap(err, "failed to fetch killmails")
 		}
@@ -77,24 +73,98 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 	}
 
-	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("found %d killmails, filtering....", len(zmails)))
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("found %d killmails, normalizing with ESI....", len(zmails)))
 	if err != nil {
 		s.logger.WithError(err).Errorln("failed to send message")
 	}
 
-	filteredKillmails := make([]*esi.KillmailOk, 0, len(zmails))
+	normalizedKillmails := make([]*esi.KillmailOk, 0, len(zmails))
 	for _, zmail := range zmails {
 		killmail, err := s.esi.KillmailByIDHash(ctx, int64(zmail.KillmailID), zmail.Meta.Hash)
 		if err != nil {
 			return errors.Wrap(err, "failed to fetch killmail from ESI")
 		}
 		if killmail.KillmailTime.Unix() < timeBoundary.Unix() {
+			s.logger.WithFields(logrus.Fields{
+				"killTime":     killmail.KillmailTime.Format("2006-01-02 15:04:05"),
+				"timeBoundary": timeBoundary.Format("2006-01-02 15:04:05"),
+			}).Debugln("outside time boundary, skipping")
 			break
+		}
+		normalizedKillmails = append(normalizedKillmails, killmail)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"normalizedKillmails": len(normalizedKillmails),
+		"perspective":         c.String("perspective"),
+	}).Debugln()
+
+	switch c.String("perspective") {
+	case "aggressor":
+		return s.analyzeAgressorKillmail(ctx, c, msg, id, normalizedKillmails)
+	case "victim":
+		return s.analyzeVictimKillmail(ctx, c, msg, id, normalizedKillmails)
+	default:
+		return errors.New("invalid value for perspective")
+	}
+
+}
+
+func (s *Service) formatMessage(c *cli.Context, searchedCharacter *esi.CharacterOk, killmail *esi.KillmailOk) string {
+	switch c.String("format") {
+	case "evelink":
+		return fmt.Sprintf(
+			"<url=showinfo:1373//%d>%s</url>",
+			killmail.Victim.CharacterID,
+			killmail.Victim.Character.Name,
+		)
+	case "detailed":
+		return fmt.Sprintf(
+			"%s killed %s (%d) on %s in %s (%.2f)",
+			searchedCharacter.Name,
+			killmail.Victim.Character.Name,
+			killmail.KillmailID,
+			killmail.KillmailTime.Format("2006-01-02"),
+			killmail.SolarSystem.Name,
+			killmail.SolarSystem.SecurityStatus,
+		)
+	default:
+		return killmail.Victim.Character.Name
+	}
+}
+
+func (s *Service) analyzeAgressorKillmail(ctx context.Context, c *cli.Context, msg *discordgo.MessageCreate, targetID uint64, killmails []*esi.KillmailOk) error {
+
+	searchedCharacter, err := s.esi.Character(ctx, targetID)
+	if err != nil {
+		return errors.Wrap(err, "failed to fetch character from ESI")
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, "character found, checking for killmails")
+	if err != nil {
+		s.logger.WithError(err).Errorln("failed to send message")
+	}
+
+	filteredKillmails := make([]*esi.KillmailOk, 0, len(killmails))
+	for _, killmail := range killmails {
+
+		var aggressor *esi.KillmailAttacker
+		for _, attacker := range killmail.Attackers {
+			if uint64(attacker.CharacterID) == targetID {
+				aggressor = attacker
+				break
+			}
+		}
+
+		if aggressor == nil {
+			continue
 		}
 
 		system, err := s.esi.System(ctx, uint(killmail.SolarSystemID))
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch killmail solar system from ESI")
+			s.logger.WithError(err).Error("failed to fetch killmail solar system from ESI")
+			// return errors.Wrap(err, "failed to fetch killmail solar system from ESI")
+			continue
 		}
 		killmail.SolarSystem = system
 
@@ -107,6 +177,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 			continue
 		}
 
+		// Structures don't have a character ID
 		if killmail.Victim.CharacterID == 0 {
 			continue
 		}
@@ -114,34 +185,36 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		// Add Checking for Wars
 		victimCharacter, err := s.esi.Character(ctx, uint64(killmail.Victim.CharacterID))
 		if err != nil {
-			return errors.Wrap(err, "failed to fetch character from ESI")
+			s.logger.WithError(err).Error("failed to fetch character from ESI")
+			// return false, errors.Wrap(err, "failed to fetch character from ESI")
+			continue
 		}
 
 		killmail.Victim.Character = victimCharacter
 
 		warEntityMatrix := [][]wars.Entity{}
-		if searchedCharacter.CorporationID > 0 && killmail.Victim.CorporationID > 0 {
+		if aggressor.CorporationID > 0 && killmail.Victim.CorporationID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
-				{T: "corporation", ID: searchedCharacter.CorporationID},
-				{T: "corporation", ID: victimCharacter.CorporationID},
+				{T: "corporation", ID: uint(aggressor.CorporationID)},
+				{T: "corporation", ID: uint(killmail.Victim.CorporationID)},
 			})
 		}
-		if searchedCharacter.AllianceID > 0 && killmail.Victim.AllianceID > 0 {
+		if aggressor.AllianceID > 0 && killmail.Victim.AllianceID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
-				{T: "alliance", ID: searchedCharacter.AllianceID},
-				{T: "alliance", ID: victimCharacter.AllianceID},
+				{T: "alliance", ID: aggressor.AllianceID},
+				{T: "alliance", ID: killmail.Victim.AllianceID},
 			})
 		}
-		if searchedCharacter.CorporationID > 0 && killmail.Victim.AllianceID > 0 {
+		if aggressor.CorporationID > 0 && killmail.Victim.AllianceID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
-				{T: "corporation", ID: searchedCharacter.CorporationID},
-				{T: "alliance", ID: victimCharacter.AllianceID},
+				{T: "corporation", ID: aggressor.CorporationID},
+				{T: "alliance", ID: killmail.Victim.AllianceID},
 			})
 		}
-		if searchedCharacter.AllianceID > 0 && killmail.Victim.CorporationID > 0 {
+		if aggressor.AllianceID > 0 && killmail.Victim.CorporationID > 0 {
 			warEntityMatrix = append(warEntityMatrix, []wars.Entity{
-				{T: "alliance", ID: searchedCharacter.AllianceID},
-				{T: "corporation", ID: victimCharacter.CorporationID},
+				{T: "alliance", ID: aggressor.AllianceID},
+				{T: "corporation", ID: killmail.Victim.CorporationID},
 			})
 		}
 
@@ -167,7 +240,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 	}
 
 	if len(filteredKillmails) == 0 {
-		_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, "0 killmails remained after filtering....", true))
+		_, err := s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, "0 killmails remained after filtering....", true))
 		if err != nil {
 			s.logger.WithError(err).Errorln("failed to send message")
 		}
@@ -182,7 +255,7 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 	}
 
 	messages := make([]string, 0, len(filteredKillmails))
-	seen := make(map[int]bool)
+	seen := make(map[uint64]bool)
 	for _, killmail := range filteredKillmails {
 		_, ok := seen[killmail.Victim.CharacterID]
 		if ok {
@@ -244,25 +317,175 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 }
 
-func (s *Service) formatMessage(c *cli.Context, searchedCharacter *esi.CharacterOk, killmail *esi.KillmailOk) string {
+func (s *Service) analyzeVictimKillmail(ctx context.Context, c *cli.Context, msg *discordgo.MessageCreate, targetID uint64, killmails []*esi.KillmailOk) error {
+
+	// validAggressors := make([]*esi.KillmailAttacker, 0, len(killmails)*5)
+	type character struct {
+		seen      int
+		character *esi.CharacterOk
+	}
+	mapAggressors := make(map[uint64]*character)
+
+	entry := s.logger.WithFields(logrus.Fields{
+		"perspective": "victim",
+		"victimID":    targetID,
+	})
+
+	for _, killmail := range killmails {
+
+		entry := entry.WithFields(logrus.Fields{
+			"killmailID": killmail.KillmailID,
+		})
+
+		// Fetch system killmail took place in
+		system, err := s.esi.System(ctx, uint(killmail.SolarSystemID))
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch killmail solar system from ESI")
+		}
+		killmail.SolarSystem = system
+
+		// If killmail took place in null sec, ignore it
+		if system.SecurityStatus < 0 {
+			entry.Debug("skipping due to negative sec status")
+			continue
+		}
+
+		// If killmail took place in low sec and the victim ship is not a capsule, ignore it
+		if system.SecurityStatus < .5 && killmail.Victim.ShipTypeID != 670 {
+			entry.Debug("skipping due to non pod kill in low sec")
+			continue
+		}
+
+		// Since a corporation cannot belong to multiple alliances at once
+		// loop over the attackers assumbling a map keyed by the attackers corporation ID with a value of the
+		// attacker. This means if a killmail has multiple attackers from the same corporation,
+		// we will have one corporationID - allianceID pair to look for wars against,
+		// instead of just looking at all aggressors and querying for the same pair over and over.
+		var mapUniqueAttackersByCorporationID = make(map[uint]*esi.KillmailAttacker)
+		for _, attacker := range killmail.Attackers {
+			if _, ok := mapUniqueAttackersByCorporationID[attacker.CorporationID]; !ok {
+				mapUniqueAttackersByCorporationID[attacker.CorporationID] = attacker
+			}
+		}
+
+		victim := killmail.Victim
+
+		// For each of the unique pairs we gathered above, build out a matrix of or statments to assemble
+		// a query to mongo with.
+		for _, attacker := range mapUniqueAttackersByCorporationID {
+			warEntityMatrix := make([][]wars.Entity, 0, 4)
+			if victim.CorporationID > 0 && attacker.CorporationID > 0 {
+				warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+					{T: "corporation", ID: victim.CorporationID},
+					{T: "corporation", ID: attacker.CorporationID},
+				})
+			}
+			if victim.AllianceID > 0 && attacker.AllianceID > 0 {
+				warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+					{T: "alliance", ID: victim.AllianceID},
+					{T: "alliance", ID: attacker.AllianceID},
+				})
+			}
+			if victim.CorporationID > 0 && attacker.AllianceID > 0 {
+				warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+					{T: "corporation", ID: victim.CorporationID},
+					{T: "alliance", ID: attacker.AllianceID},
+				})
+			}
+			if victim.AllianceID > 0 && attacker.CorporationID > 0 {
+				warEntityMatrix = append(warEntityMatrix, []wars.Entity{
+					{T: "alliance", ID: victim.AllianceID},
+					{T: "corporation", ID: attacker.CorporationID},
+				})
+			}
+
+			var warSkip = false
+			for _, pair := range warEntityMatrix {
+				atWar, err := s.wars.EntitiesAtWar(ctx, pair[0], pair[1], killmail.KillmailTime)
+				if err != nil {
+					return errors.Wrap(err, "failed to determine if entities are at war")
+				}
+
+				warSkip = atWar
+				if warSkip {
+					break
+				}
+			}
+
+			if warSkip {
+				entry.Debug("skipping due to active war")
+				continue
+			}
+
+			// If we did not get any wars back, that means that this corporationID/allianceID pair is not at war
+			// with the victim, which means the victim has a kill right for each of the attackers that belong to that
+			// corporationID/allianceID pair, find those agressors and add them to a basket of *esi.KillmailAttackers
+			// Our calling function should convert these to *esi.CharacterOk so that they get a name out of them.
+			if !warSkip {
+				for _, a := range killmail.Attackers {
+					if a.CorporationID == attacker.CorporationID {
+						if _, ok := mapAggressors[a.CharacterID]; !ok {
+							mapAggressors[a.CharacterID] = &character{}
+						}
+
+						mapAggressors[a.CharacterID].seen++
+					}
+				}
+			}
+		}
+	}
+
+	if len(mapAggressors) == 0 {
+		_, err := s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, "0 agressors remained after filtering....", true))
+		if err != nil {
+			s.logger.WithError(err).Errorln("failed to send message")
+		}
+
+		return nil
+
+	}
+
+	for characterID, character := range mapAggressors {
+		esiChar, err := s.esi.Character(ctx, characterID)
+		if err != nil {
+			entry.WithError(err).Error("failed to fetch character from ESI")
+		}
+
+		character.character = esiChar
+
+	}
+
+	var extra string
 	switch c.String("format") {
 	case "evelink":
-		return fmt.Sprintf(
-			"<url=showinfo:1373//%d>%s</url>",
-			killmail.Victim.CharacterID,
-			killmail.Victim.Character.Name,
-		)
-	case "detailed":
-		return fmt.Sprintf(
-			"%s killed %s (%d) on %s in %s (%.2f)",
-			searchedCharacter.Name,
-			killmail.Victim.Character.Name,
-			killmail.KillmailID,
-			killmail.KillmailTime.Format("2006-01-02"),
-			killmail.SolarSystem.Name,
-			killmail.SolarSystem.SecurityStatus,
-		)
-	default:
-		return killmail.Victim.Character.Name
+		extra = "Copy and Paste this text into the in game notepad. The text will link to the characters showinfo window\n"
 	}
+
+	messages := make([]string, 0, len(mapAggressors))
+
+	for _, character := range mapAggressors {
+		var message string
+		switch c.String("format") {
+		case "evelinks":
+			message = fmt.Sprintf(
+				"<url=showinfo:1373//%d>%s</url>",
+				character.character.ID,
+				character.character.Name,
+			)
+		default:
+			message = fmt.Sprintf("%s (%d)", character.character.Name, character.character.ID)
+		}
+
+		messages = append(messages, message)
+
+	}
+
+	_, err := s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Found %d potential attacker(s) who this victim may have killrights for:\n%s```%s```", len(messages), extra, strings.Join(messages, "\n")), false))
+	if err != nil {
+		s.logger.WithError(err).Error("failed to send message")
+		return err
+	}
+
+	return nil
+
 }

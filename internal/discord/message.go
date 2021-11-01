@@ -8,7 +8,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/kballard/go-shellquote"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var ErrMissingMsgIFace = errors.New("[ErrMissingMsgIFace] msg missing from metadata. contact application maintainer")

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var buf = &bytes.Buffer{}
@@ -27,7 +27,7 @@ func (s *Service) initializeCLI() *cli.App {
 		Compiled:              time.Now(),
 		Writer:                buf,
 		CustomAppHelpTemplate: fmt.Sprintf("```%s```", cli.AppHelpTemplate),
-		Commands: []cli.Command{
+		Commands: []*cli.Command{
 			{
 				Name:               "ping",
 				HelpName:           "ping",
@@ -65,11 +65,20 @@ func (s *Service) initializeCLI() *cli.App {
 				UsageText:          "killright <characterID>",
 				Action:             s.killrightExecutor,
 				CustomHelpTemplate: CommandHelpTemplate,
+				Aliases:            []string{"kr"},
+
 				Flags: []cli.Flag{
-					cli.StringFlag{
-						Name:  "format",
-						Usage: "Format of the list outputted. Options include simple, details, evelinks. (Default: simple)",
-						Value: "simple",
+					&cli.StringFlag{
+						Name:    "format",
+						Aliases: []string{"f"},
+						Usage:   "Format of the list outputted. Options include simple, details, evelinks",
+						Value:   "simple",
+					},
+					&cli.StringFlag{
+						Name:    "perspective",
+						Aliases: []string{"p"},
+						Usage:   "Perspective to analyze killmails from. Valid values are agressor, victim, ship",
+						Value:   "aggressor",
 					},
 				},
 			},
@@ -86,10 +95,10 @@ func (s *Service) initializeCLI() *cli.App {
 					}
 
 					args := c.Args()
-					if len(args) > 1 {
-						return errors.Errorf("expected 1 arg, got %d", len(args))
+					if args.Len() > 1 {
+						return errors.Errorf("expected 1 arg, got %d", args.Len())
 					}
-					id, err := strconv.ParseUint(args[0], 10, 32)
+					id, err := strconv.ParseUint(args.Get(0), 10, 32)
 					if err != nil {
 						return errors.Wrap(err, "failed to parse killmail id to integer")
 					}
@@ -124,6 +133,13 @@ func (s *Service) shouldRunCLI(cli *cli.App, words []string) bool {
 	for _, command := range cli.Commands {
 		if command.Name == words[0] {
 			return true
+		}
+		if len(command.Aliases) > 0 {
+			for _, alias := range command.Aliases {
+				if alias == words[0] {
+					return true
+				}
+			}
 		}
 	}
 

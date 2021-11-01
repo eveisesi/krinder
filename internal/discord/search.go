@@ -9,7 +9,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
 	"github.com/pkg/errors"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var validCategories = []string{"character"}
@@ -22,16 +22,16 @@ func (s *Service) searchCommand(c *cli.Context) error {
 	}
 
 	args := c.Args()
-	if len(args) > 2 {
-		return errors.Errorf("expected 2 args, got %d. Surround name in double quotes \"<name>\"", len(args))
+	if args.Len() > 2 {
+		return errors.Errorf("expected 2 args, got %d. Surround name in double quotes \"<name>\"", args.Len())
 	}
 
-	category := args[0]
+	category := args.Get(0)
 	if !isValidCategory(category) {
 		return errors.Errorf("%s is an invalid character, expected one of %s", category, strings.Join(validCategories, ", "))
 	}
 
-	term := args[1]
+	term := args.Get(1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()

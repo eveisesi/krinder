@@ -10,40 +10,41 @@ import (
 )
 
 type KillmailOk struct {
-	Attackers     []KillmailAttacker `json:"attackers"`
-	KillmailID    int                `json:"killmail_id"`
-	KillmailTime  time.Time          `json:"killmail_time"`
-	SolarSystemID int                `json:"solar_system_id"`
-	Victim        *KillmailVictim    `json:"victim"`
-	SolarSystem   *SystemOk          `json:"system,omitempty"`
+	Attackers     []*KillmailAttacker `json:"attackers"`
+	KillmailID    int                 `json:"killmail_id"`
+	KillmailTime  time.Time           `json:"killmail_time"`
+	SolarSystemID int                 `json:"solar_system_id"`
+	Victim        *KillmailVictim     `json:"victim"`
+	SolarSystem   *SystemOk           `json:"system,omitempty"`
 }
 
 type KillmailAttacker struct {
-	CharacterID    int     `json:"character_id"`
-	CorporationID  int     `json:"corporation_id"`
-	DamageDone     int     `json:"damage_done"`
+	CharacterID    uint64  `json:"character_id"`
+	CorporationID  uint    `json:"corporation_id"`
+	AllianceID     uint    `json:"alliance_id"`
+	DamageDone     uint    `json:"damage_done"`
 	FinalBlow      bool    `json:"final_blow"`
 	SecurityStatus float64 `json:"security_status"`
-	ShipTypeID     int     `json:"ship_type_id"`
-	WeaponTypeID   int     `json:"weapon_type_id"`
-	FactionID      int     `json:"faction_id,omitempty"`
+	ShipTypeID     uint    `json:"ship_type_id"`
+	WeaponTypeID   uint    `json:"weapon_type_id"`
+	FactionID      uint    `json:"faction_id,omitempty"`
 }
 
 type KillmailVictimItem struct {
-	Flag              int `json:"flag"`
-	ItemTypeID        int `json:"item_type_id"`
-	QuantityDestroyed int `json:"quantity_destroyed,omitempty"`
-	Singleton         int `json:"singleton"`
-	QuantityDropped   int `json:"quantity_dropped,omitempty"`
+	Flag              uint `json:"flag"`
+	ItemTypeID        uint `json:"item_type_id"`
+	QuantityDestroyed uint `json:"quantity_destroyed,omitempty"`
+	Singleton         uint `json:"singleton"`
+	QuantityDropped   uint `json:"quantity_dropped,omitempty"`
 }
 
 type KillmailVictim struct {
-	AllianceID    int                   `json:"alliance_id"`
-	CharacterID   int                   `json:"character_id"`
-	CorporationID int                   `json:"corporation_id"`
-	DamageTaken   int                   `json:"damage_taken"`
+	AllianceID    uint                  `json:"alliance_id"`
+	CharacterID   uint64                `json:"character_id"`
+	CorporationID uint                  `json:"corporation_id"`
+	DamageTaken   uint                  `json:"damage_taken"`
 	Items         []*KillmailVictimItem `json:"items"`
-	ShipTypeID    int                   `json:"ship_type_id"`
+	ShipTypeID    uint                  `json:"ship_type_id"`
 
 	Character *CharacterOk `json:"character,omitempty"`
 }
