@@ -1,10 +1,10 @@
 name: Docker
 
-on:
-    push:
-        # Publish `v1.2.3` tags as releases.
-        tags:
-            - v*
+# on:
+#     push:
+#         # Publish `v1.2.3` tags as releases.
+#         tags:
+#             - v*
 jobs:
     # Push image to GitHub Packages.
     # See also https://docs.docker.com/docker-hub/builds/
