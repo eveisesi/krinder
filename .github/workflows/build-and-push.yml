@@ -33,7 +33,7 @@ jobs:
                   echo VERSION=$VERSION
                   IMAGE_NAME=$IMAGE_BASE
                   echo IMAGE_NAME=$IMAGE_NAME
-                  docker tag krinder:latest $IMAGE_NAME:$VERSION
-                  docker tag krinder:latest $IMAGE_NAME:latest
+                  docker tag krinder:latest $IMAGE_NAME/$VERSION
+                  docker tag krinder:latest $IMAGE_NAME/latest
                   docker push $IMAGE_NAME:$VERSION 
                   docker push $IMAGE_NAME:latest
