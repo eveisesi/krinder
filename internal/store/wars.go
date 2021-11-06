@@ -13,17 +13,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type WarAPI interface {
-	War(ctx context.Context, warID uint) (*krinder.MongoWar, error)
-	Wars(ctx context.Context, operators ...*krinder.Operator) ([]*krinder.MongoWar, error)
-	CreateWar(ctx context.Context, war *krinder.MongoWar) (*krinder.MongoWar, error)
-	CreateWarBulk(ctx context.Context, wars []*krinder.MongoWar) error
-	UpdateWar(ctx context.Context, war *krinder.MongoWar) error
-}
-
 type WarRepository struct {
 	wars *mongo.Collection
 }
+
+var _ krinder.WarRepository = new(WarRepository)
 
 func NewWarRepository(database *mongo.Database) (*WarRepository, error) {
 

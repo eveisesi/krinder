@@ -7,7 +7,6 @@ import (
 
 	"github.com/eveisesi/krinder"
 	"github.com/eveisesi/krinder/internal/esi"
-	mdb "github.com/eveisesi/krinder/internal/mongo"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -17,15 +16,15 @@ type Service struct {
 
 	esi esi.API
 
-	wars mdb.WarAPI
+	wars krinder.WarRepository
 }
 
-func NewService(logger *logrus.Logger, esi esi.API, warAPI mdb.WarAPI) *Service {
+func NewService(logger *logrus.Logger, esi esi.API, wars krinder.WarRepository) *Service {
 	return &Service{
 		logger: logger,
 		esi:    esi,
 
-		wars: warAPI,
+		wars: wars,
 	}
 }
 

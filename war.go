@@ -1,10 +1,19 @@
 package krinder
 
 import (
+	"context"
 	"time"
 
 	"github.com/volatiletech/null"
 )
+
+type WarRepository interface {
+	War(ctx context.Context, warID uint) (*MongoWar, error)
+	Wars(ctx context.Context, operators ...*Operator) ([]*MongoWar, error)
+	CreateWar(ctx context.Context, war *MongoWar) (*MongoWar, error)
+	CreateWarBulk(ctx context.Context, wars []*MongoWar) error
+	UpdateWar(ctx context.Context, war *MongoWar) error
+}
 
 type ESIWar struct {
 	ID        int              `json:"id"`
