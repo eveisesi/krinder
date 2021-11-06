@@ -1,4 +1,4 @@
-package mdb
+package store
 
 import (
 	"fmt"
@@ -23,7 +23,7 @@ const (
 	exists           string = "$exists"
 )
 
-func BuildFilters(operators ...*krinder.Operator) primitive.D {
+func BuildMongoFilters(operators ...*krinder.Operator) primitive.D {
 
 	var ops = make(primitive.D, 0)
 	for _, a := range operators {
@@ -48,7 +48,7 @@ func BuildFilters(operators ...*krinder.Operator) primitive.D {
 				arr := make(primitive.A, 0)
 
 				for _, op := range o {
-					arr = append(arr, BuildFilters(op))
+					arr = append(arr, BuildMongoFilters(op))
 				}
 
 				ops = append(ops, primitive.E{Key: or, Value: arr})
@@ -59,7 +59,7 @@ func BuildFilters(operators ...*krinder.Operator) primitive.D {
 			case []*krinder.Operator:
 				arr := make(primitive.A, 0)
 				for _, op := range o {
-					arr = append(arr, BuildFilters(op))
+					arr = append(arr, BuildMongoFilters(op))
 				}
 
 				ops = append(ops, primitive.E{Key: and, Value: arr})
@@ -96,7 +96,7 @@ func BuildFilters(operators ...*krinder.Operator) primitive.D {
 
 }
 
-func BuildFindOptions(ops ...*krinder.Operator) *options.FindOptions {
+func BuildMongoFindOptions(ops ...*krinder.Operator) *options.FindOptions {
 	var opts = options.Find()
 	for _, a := range ops {
 		switch a.Operation {

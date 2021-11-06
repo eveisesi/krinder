@@ -1,4 +1,4 @@
-package mysql
+package store
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/eveisesi/krinder"
 )
 
-func BuildFilters(s sq.SelectBuilder, operators ...*krinder.Operator) sq.SelectBuilder {
+func BuildSQLFilters(s sq.SelectBuilder, operators ...*krinder.Operator) sq.SelectBuilder {
 	for _, a := range operators {
 		if !a.Operation.IsValid() {
 			continue

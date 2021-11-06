@@ -1,4 +1,4 @@
-package mdb
+package store
 
 import (
 	"context"
@@ -95,8 +95,8 @@ func (r *WarRepository) War(ctx context.Context, warID uint) (*krinder.MongoWar,
 
 func (r *WarRepository) Wars(ctx context.Context, operators ...*krinder.Operator) ([]*krinder.MongoWar, error) {
 
-	filters := BuildFilters(operators...)
-	options := BuildFindOptions(operators...)
+	filters := BuildMongoFilters(operators...)
+	options := BuildMongoFindOptions(operators...)
 
 	var wars = make([]*krinder.MongoWar, 0)
 	result, err := r.wars.Find(ctx, filters, options)
@@ -155,14 +155,10 @@ func (r *WarRepository) UpdateWar(ctx context.Context, war *krinder.MongoWar) er
 	now := time.Now()
 	war.UpdatedAt = now
 
-	filter := BuildFilters(krinder.NewEqualOperator("id", war.ID))
-	result, err := r.wars.UpdateOne(ctx, filter, primitive.D{primitive.E{Key: "$set", Value: war}})
+	filter := BuildMongoFilters(krinder.NewEqualOperator("id", war.ID))
+	_, err := r.wars.UpdateOne(ctx, filter, primitive.D{primitive.E{Key: "$set", Value: war}})
 	if err != nil {
 		return err
-	}
-
-	if result.ModifiedCount == 0 {
-		return errors.New("expected modified count of 1, got 0")
 	}
 
 	return nil

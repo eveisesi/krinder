@@ -1,4 +1,4 @@
-package mysql
+package store
 
 const (
 	// Columns From the Group Table
@@ -10,4 +10,8 @@ const (
 	GroupExpires    = "expires"
 	GroupCreatedAt  = "created_at"
 	GroupUpdatedAt  = "updated_at"
+)
+
+const (
+	EntityID = "id"
 )
