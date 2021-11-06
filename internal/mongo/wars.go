@@ -114,7 +114,7 @@ func (r *WarRepository) CreateWar(ctx context.Context, war *krinder.MongoWar) (*
 
 	_, err := r.wars.InsertOne(ctx, war)
 	if err != nil {
-		if !isUniqueConstrainViolation(err) {
+		if !mongo.IsDuplicateKeyError(err) {
 			return nil, err
 		}
 
@@ -137,7 +137,7 @@ func (r *WarRepository) CreateWarBulk(ctx context.Context, wars []*krinder.Mongo
 
 	results, err := r.wars.InsertMany(ctx, documents)
 	if err != nil {
-		if !isUniqueConstrainViolation(err) {
+		if !mongo.IsDuplicateKeyError(err) {
 			return errors.Wrap(err, "failed to insert wars in bulk")
 		}
 	}

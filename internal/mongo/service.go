@@ -4,9 +4,7 @@ import (
 	"fmt"
 
 	"github.com/eveisesi/krinder"
-	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -112,35 +110,4 @@ func BuildFindOptions(ops ...*krinder.Operator) *options.FindOptions {
 	}
 
 	return opts
-}
-
-const duplicateKeyError = 11000
-
-func isUniqueConstrainViolation(exception error) bool {
-
-	var bwe mongo.BulkWriteException
-	if errors.As(exception, &bwe) {
-
-		if len(bwe.WriteErrors) == 0 {
-			return false
-		}
-		for _, errs := range bwe.WriteErrors {
-			if errs.Code == duplicateKeyError {
-				return true
-			}
-		}
-	}
-	var we mongo.WriteException
-	if errors.As(exception, &we) {
-		if len(we.WriteErrors) == 0 {
-			return false
-		}
-		for _, errs := range we.WriteErrors {
-			if errs.Code == duplicateKeyError {
-				return true
-			}
-		}
-	}
-
-	return false
 }

@@ -7,12 +7,19 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/eveisesi/krinder"
 	"github.com/eveisesi/krinder/internal/esi"
+	"github.com/eveisesi/krinder/internal/mysql"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
 
-var validCategories = []string{"character"}
+var validCategories = []string{"character", "invgroup"}
+
+type searchResult struct {
+	id   uint
+	name string
+}
 
 func (s *Service) searchCommand(c *cli.Context) error {
 
@@ -36,24 +43,41 @@ func (s *Service) searchCommand(c *cli.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	ids, err := s.esi.Search(ctx, category, term, c.Bool("strict"))
-	if err != nil {
-		return errors.Wrapf(err, "failed to search for %s", category)
-	}
-
-	var names []*esi.NamesOk
+	var results = make([]*searchResult, 0)
 
 	switch category {
 	case "character":
+		ids, err := s.esi.Search(ctx, category, term, c.Bool("strict"))
+		if err != nil {
+			return errors.Wrapf(err, "failed to search for %s", category)
+		}
+
 		characterNames, err := s.handleSearchCharacterIDs(ctx, ids.Character)
 		if err != nil {
 			return errors.Wrap(err, "search for characters failed")
 		}
 
-		names = characterNames
+		for _, name := range characterNames {
+			results = append(results, &searchResult{
+				id:   uint(name.ID),
+				name: name.Name,
+			})
+		}
+	case "invgroup":
+		groupNames, err := s.handleInvGroupSearch(ctx, term, c.Bool("strict"))
+		if err != nil {
+			return errors.Wrap(err, "search for characters failed")
+		}
+
+		for _, name := range groupNames {
+			results = append(results, &searchResult{
+				id:   uint(name.GroupID),
+				name: name.Name,
+			})
+		}
 	}
 
-	if len(names) == 0 {
+	if len(results) == 0 {
 		_, err := s.session.ChannelMessageSend(msg.ChannelID, "search return 0 results")
 		if err != nil {
 			s.logger.WithError(err).Error("failed to send message")
@@ -61,9 +85,9 @@ func (s *Service) searchCommand(c *cli.Context) error {
 		}
 	}
 
-	var contentSlc = make([]string, 0, len(names))
-	for _, name := range names {
-		contentSlc = append(contentSlc, fmt.Sprintf("%d: %s", name.ID, name.Name))
+	var contentSlc = make([]string, 0, len(results))
+	for _, result := range results {
+		contentSlc = append(contentSlc, fmt.Sprintf("%d: %s", result.id, result.name))
 	}
 
 	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Search Return %d Results: ```%s```", len(contentSlc), strings.Join(contentSlc, "\n")), false))
@@ -112,5 +136,23 @@ func (s *Service) handleSearchCharacterIDs(ctx context.Context, ids []int) ([]*e
 	}
 
 	return names, nil
+
+}
+
+func (s *Service) handleInvGroupSearch(ctx context.Context, term string, strict bool) ([]*krinder.MySQLGroup, error) {
+
+	var filters = make([]*krinder.Operator, 0)
+	filters = append(filters, krinder.NewEqualOperator(mysql.GroupPublished, 1))
+
+	switch strict {
+	case true:
+		filters = append(filters, krinder.NewEqualOperator(mysql.GroupName, term))
+	case false:
+		filters = append(filters, krinder.NewLikeOperator(mysql.GroupName, term))
+	}
+
+	names, err := s.universe.Groups(ctx, filters...)
+
+	return names, errors.Wrap(err, "Failed to query universe for group")
 
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/eveisesi/krinder"
 	"github.com/eveisesi/krinder/pkg/roundtripper"
 	"github.com/go-redis/redis/v8"
 	"github.com/pkg/errors"
@@ -16,14 +17,20 @@ import (
 
 type API interface {
 	// Characters
-	Character(ctx context.Context, id uint) (*CharacterOk, error)
+	Character(ctx context.Context, id uint64) (*CharacterOk, error)
 	// Killmails
 	KillmailByIDHash(ctx context.Context, id int64, hash string) (*KillmailOk, error)
 	// Search
-	Search(ctx context.Context, category, term string) (*SearchOk, error)
+	Search(ctx context.Context, category, term string, strict bool) (*SearchOk, error)
 	// Universe
 	Names(ctx context.Context, ids []int) ([]*NamesOk, error)
 	System(ctx context.Context, id uint) (*SystemOk, error)
+
+	Group(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*GroupOk, error)
+	Groups(ctx context.Context, page uint) (*GroupsOk, error)
+
+	War(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*krinder.ESIWar, error)
+	Wars(ctx context.Context) ([]int, error)
 }
 
 type Service struct {
@@ -35,6 +42,8 @@ type Service struct {
 const (
 	HeaderTimestampFormat = "Mon, 02 Jan 2006 15:04:05 MST"
 )
+
+var _ API = new(Service)
 
 func New(userAgent string, cache *redis.Client) *Service {
 	return &Service{
@@ -55,7 +64,7 @@ type Out struct {
 	Status  int         `json:"status"`
 }
 
-func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, cacheDuration time.Duration, out *Out, reqMods []requestFunc, respMods []responseFunc) error {
+func (s *Service) request(ctx context.Context, method, path string, body io.Reader, expected int, cacheDuration time.Duration, out *Out, reqMods []RequestFunc, respMods []responseFunc) error {
 
 	url := fmt.Sprintf("%s%s", s.url, path)
 
@@ -71,10 +80,8 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 			return errors.Wrap(err, "failed to create request")
 		}
 
-		if len(reqMods) > 0 {
-			for _, mod := range reqMods {
-				mod(req)
-			}
+		for _, mod := range reqMods {
+			mod(req)
 		}
 
 		res, err = s.client.Do(req)
@@ -102,6 +109,9 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		}
 	}(fmt.Sprintf("%s %s", method, path), res.Body)
 
+	out.Status = res.StatusCode
+	out.Headers = res.Header
+
 	if res.StatusCode > 399 || (res.StatusCode != expected && res.StatusCode != http.StatusNotModified) {
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
@@ -110,9 +120,6 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 
 		return errors.Errorf("expected status %d, got %d: %s", expected, res.StatusCode, string(data))
 	}
-
-	out.Status = res.StatusCode
-	out.Headers = res.Header
 
 	if out.Status == http.StatusOK {
 		if cacheDuration == time.Duration(-1) {
@@ -131,10 +138,8 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 		}
 	}
 
-	if len(respMods) > 0 {
-		for _, mod := range respMods {
-			mod(out)
-		}
+	for _, mod := range respMods {
+		mod(out)
 	}
 
 	if method == http.MethodGet {
@@ -149,7 +154,7 @@ func (s *Service) request(ctx context.Context, method, path string, body io.Read
 // if duration == -2, results will be cached permenantly with no duration,
 // if duration == -1, results will be cached temporarily according to the Expires header on the result if the result response code == expected
 // if duration == 0, results will not be cached
-// if duration > 0, results will be cached accordding to the provided value multiple by time.Second
+// if duration > 0, results will be cached according to the provided value
 func (s *Service) setResponseCache(ctx context.Context, url string, duration time.Duration, out *Out) error {
 
 	var d time.Duration
@@ -159,6 +164,8 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 		return errors.New("invalid duration")
 	} else if duration == 0 {
 		return nil
+	} else if duration > 0 {
+		d = duration
 	}
 
 	payload, err := json.Marshal(out)
@@ -166,17 +173,20 @@ func (s *Service) setResponseCache(ctx context.Context, url string, duration tim
 		return errors.Wrap(err, "failed to encode payload to json")
 	}
 
-	key := fmt.Sprintf("%x", sha256.Sum256([]byte(url)))
+	key := fmt.Sprintf("%x", s.hashString(url))
 	_, err = s.cache.Set(ctx, key, string(payload), d).Result()
 
 	return errors.Wrap(err, "failed to cache response")
 
 }
 
+func (s *Service) hashString(i string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(i)))
+}
+
 func (s *Service) getResponseCache(ctx context.Context, url string, out *Out) error {
 
-	key := fmt.Sprintf("%x", sha256.Sum256([]byte(url)))
-	b, err := s.cache.Get(ctx, key).Bytes()
+	b, err := s.cache.Get(ctx, s.hashString(url)).Bytes()
 	if err != nil {
 		return err
 	}

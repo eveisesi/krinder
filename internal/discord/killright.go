@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/eveisesi/krinder/internal/esi"
 	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
@@ -16,7 +17,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func (s *Service) killrightExecutor(c *cli.Context) error {
+var initialBoundary = time.Now().AddDate(0, 0, -14)
+var timeBoundary = time.Date(initialBoundary.Year(), initialBoundary.Month(), initialBoundary.Day(), 0, 0, 0, 0, time.UTC)
+
+func (s *Service) killrightAttackerCommand(c *cli.Context) error {
 
 	msg, err := messageFromCLIContext(c)
 	if err != nil {
@@ -31,20 +35,11 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 		return errors.Wrap(err, "failed to parse id to integer")
 	}
 
-	var ft zkillboard.FetchType = zkillboard.KillsFetchType
-	var et zkillboard.EntityType = zkillboard.CharacterEntityType
-	switch c.String("perspective") {
-	case "victim":
-		ft = zkillboard.LossesFetchType
-	}
-
 	var zmails = make([]*zkillboard.Killmail, 0)
 	i := uint(1)
-	timeBoundary := time.Now().AddDate(0, 0, -14)
-	timeBoundary = time.Date(timeBoundary.Year(), timeBoundary.Month(), timeBoundary.Day(), 0, 0, 0, 0, time.UTC)
 	for {
 
-		killmailInteration, err := s.zkb.Killmails(ctx, et, id, ft, i)
+		killmailInteration, err := s.zkb.Killmails(ctx, zkillboard.CharacterEntityType, id, zkillboard.KillsFetchType, i)
 		if err != nil {
 			return errors.Wrap(err, "failed to fetch killmails")
 		}
@@ -96,17 +91,107 @@ func (s *Service) killrightExecutor(c *cli.Context) error {
 
 	s.logger.WithFields(logrus.Fields{
 		"normalizedKillmails": len(normalizedKillmails),
-		"perspective":         c.String("perspective"),
 	}).Debugln()
 
-	switch c.String("perspective") {
-	case "aggressor":
-		return s.analyzeAgressorKillmail(ctx, c, msg, id, normalizedKillmails)
-	case "victim":
-		return s.analyzeVictimKillmail(ctx, c, msg, id, normalizedKillmails)
-	default:
-		return errors.New("invalid value for perspective")
+	return s.analyzeAgressorKillmail(ctx, c, msg, id, normalizedKillmails)
+}
+
+func (s *Service) killrightVictimCommand(c *cli.Context) error {
+
+	msg, err := messageFromCLIContext(c)
+	if err != nil {
+		return err
 	}
+
+	args := c.Args()
+
+	ctx := context.Background()
+	id, err := strconv.ParseUint(args.Get(0), 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse id to integer")
+	}
+
+	var zmails = make([]*zkillboard.Killmail, 0)
+	i := uint(1)
+	for {
+
+		killmailInteration, err := s.zkb.Killmails(ctx, zkillboard.CharacterEntityType, id, zkillboard.LossesFetchType, i)
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch killmails")
+		}
+
+		if len(killmailInteration) == 0 {
+			break
+		}
+
+		zmails = append(zmails, killmailInteration...)
+
+		lastKill := zmails[len(killmailInteration)-1]
+
+		killmail, err := s.esi.KillmailByIDHash(ctx, int64(lastKill.KillmailID), lastKill.Meta.Hash)
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch killmail from esi")
+		}
+
+		if killmail.KillmailTime.Unix() < timeBoundary.Unix() {
+			// We have at least 14 days worth of mails, maybe more
+			// Additional filtering will be done after we fetch each mail
+			fmt.Println("filtered page", killmail.KillmailTime.Format("2006-01-02 15:04:05"), timeBoundary.Format("2006-01-02 15:04:05"))
+			break
+		}
+
+		i++
+
+	}
+
+	if len(zmails) == 0 {
+		_, err = s.session.ChannelMessageSend(msg.ChannelID, "found 0 killmails, halting search")
+		if err != nil {
+			s.logger.WithError(err).Errorln("failed to send message")
+		}
+	}
+
+	_, err = s.session.ChannelMessageSend(msg.ChannelID, fmt.Sprintf("found %d killmails, normalizing with ESI....", len(zmails)))
+	if err != nil {
+		s.logger.WithError(err).Errorln("failed to send message")
+	}
+
+	normalizedKillmails := make([]*esi.KillmailOk, 0, len(zmails))
+	for _, zmail := range zmails {
+		killmail, err := s.esi.KillmailByIDHash(ctx, int64(zmail.KillmailID), zmail.Meta.Hash)
+		if err != nil {
+			return errors.Wrap(err, "failed to fetch killmail from ESI")
+		}
+		if killmail.KillmailTime.Unix() < timeBoundary.Unix() {
+			s.logger.WithFields(logrus.Fields{
+				"killTime":     killmail.KillmailTime.Format("2006-01-02 15:04:05"),
+				"timeBoundary": timeBoundary.Format("2006-01-02 15:04:05"),
+			}).Debugln("outside time boundary, skipping")
+			break
+		}
+		normalizedKillmails = append(normalizedKillmails, killmail)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"normalizedKillmails": len(normalizedKillmails),
+	}).Debugln()
+
+	return s.analyzeVictimKillmail(ctx, c, msg, id, normalizedKillmails)
+
+}
+
+func (s *Service) killrightShipCommand(c *cli.Context) error {
+
+	// msg, err := messageFromCLIContext(c)
+	// if err != nil {
+	// 	return err
+	// }
+
+	args := c.Args()
+
+	spew.Dump(args)
+
+	return nil
 
 }
 
@@ -424,6 +509,9 @@ func (s *Service) analyzeVictimKillmail(ctx context.Context, c *cli.Context, msg
 			if !warSkip {
 				for _, a := range killmail.Attackers {
 					if a.CorporationID == attacker.CorporationID {
+						if a.CharacterID == 0 {
+							continue
+						}
 						if _, ok := mapAggressors[a.CharacterID]; !ok {
 							mapAggressors[a.CharacterID] = &character{}
 						}
@@ -442,17 +530,16 @@ func (s *Service) analyzeVictimKillmail(ctx context.Context, c *cli.Context, msg
 		}
 
 		return nil
-
 	}
 
 	for characterID, character := range mapAggressors {
 		esiChar, err := s.esi.Character(ctx, characterID)
 		if err != nil {
 			entry.WithError(err).Error("failed to fetch character from ESI")
+
 		}
 
 		character.character = esiChar
-
 	}
 
 	var extra string

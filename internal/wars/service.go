@@ -15,12 +15,12 @@ import (
 type Service struct {
 	logger *logrus.Logger
 
-	esi *esi.Service
+	esi esi.API
 
 	wars mdb.WarAPI
 }
 
-func NewService(logger *logrus.Logger, esi *esi.Service, warAPI mdb.WarAPI) *Service {
+func NewService(logger *logrus.Logger, esi esi.API, warAPI mdb.WarAPI) *Service {
 	return &Service{
 		logger: logger,
 		esi:    esi,
@@ -92,7 +92,7 @@ func (s *Service) updateWars() {
 			s.logger.WithField("iteration", i).Infoln()
 		}
 
-		war, err := s.esi.War(ctx, esiWar.ID, esiWar.IntegrityHash)
+		war, err := s.esi.War(ctx, esiWar.ID, esi.AddIfNoneMatchHeader(esiWar.IntegrityHash))
 		if err != nil {
 			s.logger.WithError(err).WithField("id", esiWar.ID).Error("failed to fetch War from ESI")
 			continue
@@ -106,7 +106,7 @@ func (s *Service) updateWars() {
 
 	}
 
-	s.logger.WithField("countUpdatedWars", updatedMongoWars).Infoln()
+	s.logger.WithField("countUpdatedWars", len(updatedMongoWars)).Infoln()
 
 	for _, mongoWar := range updatedMongoWars {
 		s.logger.WithField("id", mongoWar.ID).Info("updating war")
@@ -159,7 +159,7 @@ func (s *Service) checkForNewWars() {
 	var newWars = make([]*krinder.ESIWar, 0, len(newIDs))
 
 	for _, id := range newIDs {
-		war, err := s.esi.War(ctx, uint(id), "")
+		war, err := s.esi.War(ctx, uint(id))
 		if err != nil {
 			fmt.Println(err)
 			continue

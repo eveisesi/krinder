@@ -99,6 +99,8 @@ func (s *Service) handleCommand(msg *discordgo.MessageCreate) error {
 		return err
 	}
 
+	fmt.Println(buf.String())
+
 	if buf.String() == "" {
 		return nil
 	}

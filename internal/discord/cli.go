@@ -16,6 +16,7 @@ import (
 
 var buf = &bytes.Buffer{}
 var CommandHelpTemplate = fmt.Sprintf("```%s```", cli.CommandHelpTemplate)
+var SubCommandHelpTemplate = fmt.Sprintf("```%s```", cli.SubcommandHelpTemplate)
 
 func (s *Service) initializeCLI() *cli.App {
 	return &cli.App{
@@ -60,25 +61,45 @@ func (s *Service) initializeCLI() *cli.App {
 			},
 			{
 				Name:               "killright",
-				Usage:              "Returns a list of victims that may have a killright against the supplied characters name based on kill mail history",
+				Usage:              "",
 				HelpName:           "killright",
-				UsageText:          "killright <characterID>",
-				Action:             s.killrightExecutor,
-				CustomHelpTemplate: CommandHelpTemplate,
+				CustomHelpTemplate: SubCommandHelpTemplate,
 				Aliases:            []string{"kr"},
-
+				Action:             cli.ShowAppHelp,
+				Subcommands: []*cli.Command{
+					{
+						Name:               "attacker",
+						Usage:              "Search for Kill Rights by Killmail Attacker",
+						UsageText:          "kr a <characterID>",
+						HelpName:           "attacker",
+						Description:        "Search for Kill Rights by Killmail Attacker",
+						Aliases:            []string{"a"},
+						Action:             s.killrightAttackerCommand,
+						CustomHelpTemplate: CommandHelpTemplate,
+					},
+					{
+						Name:               "victim",
+						Description:        "Search for Kill Rights by Killmail Victim",
+						Usage:              "Search for Kill Rights by Killmail Victim",
+						UsageText:          "kr v <characterID>",
+						Aliases:            []string{"v"},
+						Action:             s.killrightVictimCommand,
+						CustomHelpTemplate: CommandHelpTemplate,
+					},
+					{
+						Name:               "ship",
+						Description:        "Search for Kill Rights by Ship Group and Type. If you don't know the ship group id, please use the search command with the invgroup command to find a group by name. Type ID is optional, so you can ommit it, but the output will be a count of kills by Group, rather than charaters you can prosue. Pass ship type id to get the summary for that ship. They are printed when in the group summary",
+						Usage:              "Search for Kill Rights by Ship Group and Type",
+						UsageText:          "kr s <shipGroupID> <shipTypeID>",
+						CustomHelpTemplate: CommandHelpTemplate,
+					},
+				},
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "format",
 						Aliases: []string{"f"},
 						Usage:   "Format of the list outputted. Options include simple, details, evelinks",
 						Value:   "simple",
-					},
-					&cli.StringFlag{
-						Name:    "perspective",
-						Aliases: []string{"p"},
-						Usage:   "Perspective to analyze killmails from. Valid values are agressor, victim, ship",
-						Value:   "aggressor",
 					},
 				},
 			},

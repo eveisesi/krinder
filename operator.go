@@ -8,24 +8,25 @@ type Operator struct {
 
 type OpValue interface{}
 
-type Operation string
+type Operation int
 
 const (
-	EqualOp              Operation = "="
-	NotEqualOp           Operation = "!="
-	GreaterThanOp        Operation = ">"
-	GreaterThanEqualToOp Operation = ">="
-	LessThanOp           Operation = "<"
-	LessThanEqualToOp    Operation = "<="
-	InOp                 Operation = "in"
-	NotInOp              Operation = "not in"
+	EqualOp Operation = iota
+	NotEqualOp
+	GreaterThanOp
+	GreaterThanEqualToOp
+	LessThanOp
+	LessThanEqualToOp
+	InOp
+	NotInOp
+	LikeOp
 
-	LimitOp  Operation = "limit"
-	OrderOp  Operation = "order"
-	SkipOp   Operation = "skip"
-	OrOp     Operation = "or"
-	AndOp    Operation = "and"
-	ExistsOp Operation = "exists"
+	LimitOp
+	OrderOp
+	SkipOp
+	OrOp
+	AndOp
+	ExistsOp
 )
 
 var AllOperations = []Operation{
@@ -37,6 +38,7 @@ var AllOperations = []Operation{
 	LessThanEqualToOp,
 	InOp,
 	NotInOp,
+	LikeOp,
 	LimitOp,
 	OrderOp,
 	SkipOp,
@@ -49,15 +51,11 @@ func (o Operation) IsValid() bool {
 	switch o {
 	case EqualOp, NotEqualOp,
 		GreaterThanOp, LessThanOp, GreaterThanEqualToOp, LessThanEqualToOp,
-		InOp, NotInOp,
+		InOp, NotInOp, LikeOp,
 		LimitOp, OrderOp, SkipOp, OrOp, AndOp, ExistsOp:
 		return true
 	}
 	return false
-}
-
-func (o Operation) Value() string {
-	return string(o)
 }
 
 func NewEqualOperator(column string, value interface{}) *Operator {
@@ -202,6 +200,14 @@ func NewExistsOperator(column string, value bool) *Operator {
 	return &Operator{
 		Column:    column,
 		Operation: ExistsOp,
+		Value:     value,
+	}
+}
+
+func NewLikeOperator(column string, value interface{}) *Operator {
+	return &Operator{
+		Column:    column,
+		Operation: LikeOp,
 		Value:     value,
 	}
 }

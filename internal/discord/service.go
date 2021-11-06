@@ -5,6 +5,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder/internal/esi"
+	"github.com/eveisesi/krinder/internal/universe"
 	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
 	"github.com/sirupsen/logrus"
@@ -22,26 +23,24 @@ type Service struct {
 	zkb *zkillboard.Service
 	esi *esi.Service
 
-	wars *wars.Service
+	wars     *wars.Service
+	universe *universe.Service
 
 	messages chan *discordgo.MessageCreate
 }
 
-func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.Service, wars *wars.Service) *Service {
+func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.Service, wars *wars.Service, universe *universe.Service) *Service {
 	s := &Service{
 		logger: logger,
 
 		zkb: zkb,
 		esi: esi,
 
-		wars: wars,
+		wars:     wars,
+		universe: universe,
 
 		messages: make(chan *discordgo.MessageCreate, 5),
 	}
-
-	// s.commands = append(s.commands, NewCommand("search", s.searchResolver, s.searchExecutor))
-	// s.commands = append(s.commands, NewCommand("ping", s.pingResolver, s.pingExecutor))
-	// s.commands = append(s.commands, NewCommand("killright", s.killrightResolver, s.killrightExecutor))
 
 	s.session = s.newDiscordSession(token)
 

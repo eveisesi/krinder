@@ -23,6 +23,12 @@ type config struct {
 		User string `envconfig:"MONGO_USER" required:"true"`
 		Pass string `envconfig:"MONGO_PASS" required:"true"`
 	}
+	MySQL struct {
+		Host string `required:"true"`
+		User string `required:"true"`
+		Pass string `required:"true"`
+		DB   string `required:"true"`
+	}
 	UserAgent string `envconfig:"USER_AGENT" required:"true"`
 }
 

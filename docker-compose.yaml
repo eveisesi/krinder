@@ -27,6 +27,16 @@ services:
             - "55410:27017"
         volumes:
             - krinder-mongo:/data/db
+    mysql:
+        image: mysql:5.7
+        restart: unless-stopped
+        container_name: krinder-mysql
+        env_file: .config/mysql/.env
+        ports:
+            - "55420:3306"
+        volumes:
+            - krinder-mysql:/var/lib/mysql
 volumes:
     krinder-cache:
     krinder-mongo:
+    krinder-mysql:
