@@ -6,6 +6,11 @@ import (
 )
 
 type UniverseRepository interface {
+	groupRespository
+	entityRepository
+}
+
+type groupRespository interface {
 	Group(ctx context.Context, groupID uint) (*MySQLGroup, error)
 	Groups(ctx context.Context, operators ...*Operator) ([]*MySQLGroup, error)
 	CreateGroup(ctx context.Context, group *MySQLGroup) (*MySQLGroup, error)
@@ -37,4 +42,27 @@ type MySQLGroup struct {
 	Etag       string    `db:"etag"`
 	CreatedAt  time.Time `db:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at"`
+}
+
+type entityRepository interface {
+	Entity(ctx context.Context, typeID uint) (*MongoEntity, error)
+	Entitys(ctx context.Context, operators ...*Operator) ([]*MongoEntity, error)
+	CreateEntity(ctx context.Context, t *MongoEntity) (*MongoEntity, error)
+	UpdateEntity(ctx context.Context, t *MongoEntity) (*MongoEntity, error)
+}
+
+type ESIEntity struct {
+	ID        uint   `json:"type_id"`
+	Name      string `json:"name"`
+	Published bool   `json:"published"`
+}
+
+type MongoEntity struct {
+	ID        uint      `json:"id"`
+	Name      string    `json:"name"`
+	Published bool      `json:"published"`
+	Expires   time.Time `db:"expires"`
+	Etag      string    `db:"etag"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 }
