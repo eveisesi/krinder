@@ -16,12 +16,13 @@ type API interface {
 }
 
 type Service struct {
-	logger *logrus.Logger
+	environment string
+	logger      *logrus.Logger
 
 	session *discordgo.Session
 
 	zkb *zkillboard.Service
-	esi *esi.Service
+	esi esi.API
 
 	wars     *wars.Service
 	universe *universe.Service
@@ -29,9 +30,10 @@ type Service struct {
 	messages chan *discordgo.MessageCreate
 }
 
-func New(token string, logger *logrus.Logger, zkb *zkillboard.Service, esi *esi.Service, wars *wars.Service, universe *universe.Service) *Service {
+func New(token, environment string, logger *logrus.Logger, zkb *zkillboard.Service, esi esi.API, wars *wars.Service, universe *universe.Service) *Service {
 	s := &Service{
-		logger: logger,
+		environment: environment,
+		logger:      logger,
 
 		zkb: zkb,
 		esi: esi,

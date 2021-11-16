@@ -93,11 +93,13 @@ const (
 	LossesFetchType FetchType = "losses"
 
 	CharacterEntityType EntityType = "characterID"
+	GroupEntityType     EntityType = "groupID"
+	ShipEntityType      EntityType = "shipTypeID"
 )
 
 var (
 	AllFetchTypes  = []FetchType{KillsFetchType, LossesFetchType}
-	AllEntityTypes = []EntityType{CharacterEntityType}
+	AllEntityTypes = []EntityType{CharacterEntityType, GroupEntityType, ShipEntityType}
 )
 
 func (f FetchType) valid() bool {

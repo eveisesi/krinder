@@ -51,6 +51,18 @@ func (s *Service) handleMessageCreate(sess *discordgo.Session, msg *discordgo.Me
 		return
 	}
 
+	if s.environment == "production" {
+		channel, err := s.session.Channel(msg.ChannelID)
+		if err != nil {
+			s.logger.WithError(err).Error("failed to fetch channel infomation")
+			return
+		}
+
+		if channel.Type != discordgo.ChannelTypeDM {
+			return
+		}
+	}
+
 	s.messages <- msg
 
 }
@@ -98,8 +110,6 @@ func (s *Service) handleCommand(msg *discordgo.MessageCreate) error {
 	if err != nil {
 		return err
 	}
-
-	fmt.Println(buf.String())
 
 	if buf.String() == "" {
 		return nil

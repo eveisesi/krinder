@@ -12,8 +12,7 @@ import (
 
 	"github.com/eveisesi/krinder/internal/discord"
 	"github.com/eveisesi/krinder/internal/esi"
-	mdb "github.com/eveisesi/krinder/internal/mongo"
-	"github.com/eveisesi/krinder/internal/mysql"
+	"github.com/eveisesi/krinder/internal/store"
 	"github.com/eveisesi/krinder/internal/universe"
 	"github.com/eveisesi/krinder/internal/wars"
 	"github.com/eveisesi/krinder/internal/zkillboard"
@@ -54,18 +53,21 @@ func main() {
 	// Call cancel func. We are done with that context and can release the resources
 	cancel()
 
-	warsRepo, err := mdb.NewWarRepository(mongoConn.Database("krinder"))
+	warsRepo, err := store.NewWarRepository(mongoConn.Database(cfg.Mongo.Database))
 	if err != nil {
-		logger.WithError(err).Fatal("failed to initialize wars Repository")
+		logger.WithError(err).Fatal("failed to initialize wars repository")
 	}
 
-	universeRepo := mysql.NewUniverseRepository(mysqlConn)
+	universeRepo, err := store.NewUniverseRepository(mysqlConn, mongoConn.Database(cfg.Mongo.Database))
+	if err != nil {
+		logger.WithError(err).Fatal("failed to initialize universe repository")
+	}
 
 	// Build out the services we want to use
 	zkb := zkillboard.New(cfg.UserAgent)
 	esi := esi.New(cfg.UserAgent, redis)
 	wars := wars.NewService(logger, esi, warsRepo)
-	// wars.Run()
+	wars.Run()
 
 	universe := universe.New(logger, redis, esi, universeRepo)
 	universe.Run()
@@ -98,7 +100,7 @@ func main() {
 	// It maintains a connection to the Discord Gateway and processes all commands
 	// that users may issue via that gateway
 	wg.Add(1)
-	go discord.New(cfg.Discord.Token, logger, zkb, esi, wars, universe).Run(done, wg)
+	go discord.New(cfg.Discord.Token, cfg.Environment, logger, zkb, esi, wars, universe).Run(done, wg)
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

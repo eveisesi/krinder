@@ -57,6 +57,14 @@ type ESIEntity struct {
 	Published bool   `json:"published"`
 }
 
+func (e *ESIEntity) ToMongoEntity() *MongoEntity {
+	return &MongoEntity{
+		ID:        e.ID,
+		Name:      e.Name,
+		Published: e.Published,
+	}
+}
+
 type MongoEntity struct {
 	ID        uint      `json:"id"`
 	Name      string    `json:"name"`

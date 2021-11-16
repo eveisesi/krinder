@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (s *Service) Wars(ctx context.Context) ([]int, error) {
+func (s *service) Wars(ctx context.Context) ([]int, error) {
 
 	var warIDs = make([]int, 0)
 	var out = &Out{Data: &warIDs}
@@ -22,7 +22,7 @@ func (s *Service) Wars(ctx context.Context) ([]int, error) {
 
 }
 
-func (s *Service) War(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*krinder.ESIWar, error) {
+func (s *service) War(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*krinder.ESIWar, error) {
 
 	var war = new(krinder.ESIWar)
 	var out = &Out{Data: war}

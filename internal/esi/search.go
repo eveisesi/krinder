@@ -15,7 +15,7 @@ type SearchOk struct {
 }
 
 // HTTP Get /v2/search/?categories={category}&term={term}
-func (s *Service) Search(ctx context.Context, category, term string, strict bool) (*SearchOk, error) {
+func (s *service) Search(ctx context.Context, category, term string, strict bool) (*SearchOk, error) {
 
 	var searchOK = new(SearchOk)
 	var out = &Out{Data: searchOK}

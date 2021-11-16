@@ -91,7 +91,14 @@ func (s *Service) initializeCLI() *cli.App {
 						Description:        "Search for Kill Rights by Ship Group and Type. If you don't know the ship group id, please use the search command with the invgroup command to find a group by name. Type ID is optional, so you can ommit it, but the output will be a count of kills by Group, rather than charaters you can prosue. Pass ship type id to get the summary for that ship. They are printed when in the group summary",
 						Usage:              "Search for Kill Rights by Ship Group and Type",
 						UsageText:          "kr s <shipGroupID> <shipTypeID>",
+						Aliases:            []string{"s"},
 						CustomHelpTemplate: CommandHelpTemplate,
+						Action:             s.killrightShipCommand,
+						Flags: []cli.Flag{
+							&cli.BoolFlag{
+								Name: "verbose",
+							},
+						},
 					},
 				},
 				Flags: []cli.Flag{

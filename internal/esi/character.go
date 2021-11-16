@@ -17,7 +17,7 @@ type CharacterOk struct {
 	AllianceID     uint    `json:"alliance_id,omitempty"`
 }
 
-func (s *Service) Character(ctx context.Context, id uint64) (*CharacterOk, error) {
+func (s *service) Character(ctx context.Context, id uint64) (*CharacterOk, error) {
 
 	var characterOk = new(CharacterOk)
 	var out = &Out{Data: characterOk}

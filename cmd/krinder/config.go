@@ -19,9 +19,10 @@ type config struct {
 		Pass string `envconfig:"REDIS_PASS" required:"true"`
 	}
 	Mongo struct {
-		Host string `envconfig:"MONGO_HOST" required:"true"`
-		User string `envconfig:"MONGO_USER" required:"true"`
-		Pass string `envconfig:"MONGO_PASS" required:"true"`
+		Host     string `envconfig:"MONGO_HOST" required:"true"`
+		Database string `envconfig:"MONGO_DATABASE" required:"true"`
+		User     string `envconfig:"MONGO_USER" required:"true"`
+		Pass     string `envconfig:"MONGO_PASS" required:"true"`
 	}
 	MySQL struct {
 		Host string `required:"true"`
@@ -29,7 +30,8 @@ type config struct {
 		Pass string `required:"true"`
 		DB   string `required:"true"`
 	}
-	UserAgent string `envconfig:"USER_AGENT" required:"true"`
+	UserAgent   string `envconfig:"USER_AGENT" required:"true"`
+	Environment string `envconfig:"ENVIRONMENT" required:"true"`
 }
 
 func buildConfig() {

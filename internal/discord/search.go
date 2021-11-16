@@ -9,7 +9,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/eveisesi/krinder"
 	"github.com/eveisesi/krinder/internal/esi"
-	"github.com/eveisesi/krinder/internal/mysql"
+	"github.com/eveisesi/krinder/internal/store"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 )
@@ -142,13 +142,13 @@ func (s *Service) handleSearchCharacterIDs(ctx context.Context, ids []int) ([]*e
 func (s *Service) handleInvGroupSearch(ctx context.Context, term string, strict bool) ([]*krinder.MySQLGroup, error) {
 
 	var filters = make([]*krinder.Operator, 0)
-	filters = append(filters, krinder.NewEqualOperator(mysql.GroupPublished, 1))
+	filters = append(filters, krinder.NewEqualOperator(store.GroupPublished, 1))
 
 	switch strict {
 	case true:
-		filters = append(filters, krinder.NewEqualOperator(mysql.GroupName, term))
+		filters = append(filters, krinder.NewEqualOperator(store.GroupName, term))
 	case false:
-		filters = append(filters, krinder.NewLikeOperator(mysql.GroupName, term))
+		filters = append(filters, krinder.NewLikeOperator(store.GroupName, term))
 	}
 
 	names, err := s.universe.Groups(ctx, filters...)

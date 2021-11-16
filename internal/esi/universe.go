@@ -20,7 +20,7 @@ type NamesOk struct {
 }
 
 // HTTP Post /v3/universe/names
-func (s *Service) Names(ctx context.Context, ids []int) ([]*NamesOk, error) {
+func (s *service) Names(ctx context.Context, ids []int) ([]*NamesOk, error) {
 
 	data, err := json.Marshal(ids)
 	if err != nil {
@@ -45,7 +45,7 @@ type SystemOk struct {
 	SecurityStatus  float64 `json:"security_status"`
 }
 
-func (s *Service) System(ctx context.Context, id uint) (*SystemOk, error) {
+func (s *service) System(ctx context.Context, id uint) (*SystemOk, error) {
 
 	var systemOk = new(SystemOk)
 	var out = &Out{Data: systemOk}
@@ -66,7 +66,7 @@ type GroupOk struct {
 	Group   *krinder.ESIGroup
 }
 
-func (s *Service) Group(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*GroupOk, error) {
+func (s *service) Group(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*GroupOk, error) {
 
 	var group = new(krinder.ESIGroup)
 	var out = &Out{Data: group}
@@ -100,7 +100,7 @@ type GroupsOk struct {
 	IDs   []uint
 }
 
-func (s *Service) Groups(ctx context.Context, page uint) (*GroupsOk, error) {
+func (s *service) Groups(ctx context.Context, page uint) (*GroupsOk, error) {
 
 	var ids = make([]uint, 0)
 	var out = &Out{Data: &ids}
@@ -125,5 +125,40 @@ func (s *Service) Groups(ctx context.Context, page uint) (*GroupsOk, error) {
 	}
 
 	return &GroupsOk{Pages: uint(pages), IDs: ids}, nil
+
+}
+
+type TypeOk struct {
+	Expires time.Time
+	Etag    string
+	Type    *krinder.ESIEntity
+}
+
+func (s *service) Type(ctx context.Context, id uint, reqFuncs ...RequestFunc) (*TypeOk, error) {
+
+	var t = new(krinder.ESIEntity)
+	var out = &Out{Data: t}
+
+	path := fmt.Sprintf("/v3/universe/types/%d/", id)
+	err := s.request(ctx, http.MethodGet, path, nil, http.StatusOK, time.Duration(time.Hour*24), out, reqFuncs, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch type")
+	}
+
+	var etag = out.Headers.Get("etag")
+	var expires time.Time
+	if xexpires := out.Headers.Get("expires"); xexpires != "" {
+		parsed, err := time.Parse(HeaderTimestampFormat, xexpires)
+		if err == nil {
+			expires = parsed
+		}
+
+	}
+
+	return &TypeOk{
+		Expires: expires,
+		Etag:    etag,
+		Type:    t,
+	}, nil
 
 }
