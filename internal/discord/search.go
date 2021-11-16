@@ -86,8 +86,16 @@ func (s *Service) searchCommand(c *cli.Context) error {
 	}
 
 	var contentSlc = make([]string, 0, len(results))
+	var bLen = 0
 	for _, result := range results {
-		contentSlc = append(contentSlc, fmt.Sprintf("%d: %s", result.id, result.name))
+		content := fmt.Sprintf("%d: %s", result.id, result.name)
+		conLen := len(content)
+		if bLen+conLen > 4000 {
+			break
+		}
+		bLen += conLen
+		contentSlc = append(contentSlc, content)
+
 	}
 
 	_, err = s.session.ChannelMessageSend(msg.ChannelID, appendLatencyToMessageCreate(msg, fmt.Sprintf("Search Return %d Results: ```%s```", len(contentSlc), strings.Join(contentSlc, "\n")), false))
