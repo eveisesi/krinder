@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
     app:
-        image: ghcr.io/eveisesi/krinder:latest
+        image: ghcr.io/eveisesi/krinder:0.3.0
         restart: unless-stopped
         container_name: krinder-app
         env_file: .config/.env
