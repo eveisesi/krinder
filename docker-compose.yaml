@@ -6,6 +6,8 @@ services:
         restart: unless-stopped
         container_name: krinder-app
         env_file: .config/.env
+        volumes:
+            - ./logs:/app/logs
     redis:
         image: redis:6.2.5
         restart: unless-stopped
